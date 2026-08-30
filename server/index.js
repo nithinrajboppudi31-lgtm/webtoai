@@ -68,10 +68,15 @@ app.get('/health', (req, res) => {
 });
 
 // Nodemailer SMTP Transporter configured for Render cloud networks
+// Nodemailer SMTP Transporter forced to IPv4 socket lookup for Render
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
   secure: false,
+  lookup: (hostname, options, callback) => {
+    // Force IPv4 lookup (family 4) on every connection attempt
+    dns.lookup(hostname, { family: 4 }, callback);
+  },
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS ? process.env.EMAIL_PASS.replace(/\s+/g, '') : '',
