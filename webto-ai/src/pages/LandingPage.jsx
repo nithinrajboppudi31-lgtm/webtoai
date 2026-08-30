@@ -71,7 +71,7 @@ export default function LandingPage() {
     // 1. Fetch user recent projects if logged in
     if (authToken) {
       try {
-        const res = await fetch('http://localhost:5000/api/projects', {
+        const res = await fetch('https://webtoai-backend.onrender.com/api/projects', {
           headers: { Authorization: `Bearer ${authToken}` },
         });
         const data = await res.json();
@@ -85,7 +85,7 @@ export default function LandingPage() {
 
     // 2. Fetch Explore showcase
     try {
-      const exploreRes = await fetch('http://localhost:5000/api/explore');
+      const exploreRes = await fetch('https://webtoai-backend.onrender.com/api/explore');
       const exploreData = await exploreRes.json();
       if (exploreRes.ok && exploreData.projects) {
         setPublicShowcase(exploreData.projects.slice(0, 3));

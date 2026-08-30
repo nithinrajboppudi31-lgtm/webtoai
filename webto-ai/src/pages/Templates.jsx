@@ -17,7 +17,7 @@ export default function Templates() {
 
   const fetchTemplates = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/templates');
+      const res = await fetch('https://webtoai-backend.onrender.com/api/templates');
       const data = await res.json();
       if (res.ok && data.templates) {
         setTemplates(data.templates);
@@ -31,7 +31,7 @@ export default function Templates() {
     setCloningId(templateId);
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/templates/${templateId}/use`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/templates/${templateId}/use`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

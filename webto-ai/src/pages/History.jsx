@@ -20,7 +20,7 @@ export default function History() {
   const fetchProjects = async () => {
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/api/projects', {
+      const res = await fetch('https://webtoai-backend.onrender.com/api/projects', {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       const data = await res.json();
@@ -39,7 +39,7 @@ export default function History() {
     setPreviewHtml('');
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/projects/${proj.id}/versions`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/projects/${proj.id}/versions`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       const data = await res.json();
@@ -62,7 +62,7 @@ export default function History() {
     setRollingBack(true);
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/projects/${selectedProject.id}/rollback/${versionId}`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/projects/${selectedProject.id}/rollback/${versionId}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${authToken}` },
       });

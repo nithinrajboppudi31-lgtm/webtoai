@@ -511,7 +511,7 @@ app.post('/api/deploy/:id', authenticate, async (req, res) => {
       .replace(/-+/g, '-')
       .slice(0, 20);
     const shortId = project.id.slice(0, 6);
-    let liveUrl = `http://localhost:5000/live/${baseTitle}-${shortId}`;
+    let liveUrl = `https://webtoai-backend.onrender.com/live/${baseTitle}-${shortId}`;
     const liveSlug = `${baseTitle}-${shortId}`;
 
     if (process.env.VERCEL_AUTH_TOKEN) {
@@ -1312,7 +1312,7 @@ app.patch('/api/projects/:id/seo', authenticate, async (req, res) => {
         description: description || project.description,
         slug: cleanSlug,
         entryHtml: updatedEntryHtml,
-        deployedUrl: project.isDeployed ? `http://localhost:5000/live/${cleanSlug}` : project.deployedUrl,
+        deployedUrl: project.isDeployed ? `https://webtoai-backend.onrender.com/live/${cleanSlug}` : project.deployedUrl,
       },
     });
 

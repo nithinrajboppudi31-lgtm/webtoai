@@ -30,7 +30,7 @@ export default function Deployments() {
     setLoading(true);
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/api/deployments', {
+      const res = await fetch('https://webtoai-backend.onrender.com/api/deployments', {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       const data = await res.json();
@@ -55,7 +55,7 @@ export default function Deployments() {
 
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/deploy/${id}`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/deploy/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${authToken}` },
       });

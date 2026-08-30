@@ -115,7 +115,7 @@ export default function Workspace() {
   const loadProject = async () => {
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/projects/${id}`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/projects/${id}`, {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       const data = await res.json();
@@ -148,7 +148,7 @@ export default function Workspace() {
     try {
       const nextState = !isPublicProject;
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/projects/${id}/visibility`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/projects/${id}/visibility`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -173,7 +173,7 @@ export default function Workspace() {
     setSavingSeo(true);
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/projects/${id}/seo`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/projects/${id}/seo`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -260,7 +260,7 @@ export default function Workspace() {
 
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/chat/${id}`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/chat/${id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -296,7 +296,7 @@ export default function Workspace() {
     const authToken = token || localStorage.getItem('token');
     setGenerating(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/generate/${id}`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/generate/${id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -358,7 +358,7 @@ ${targetedPrompt}
     setRefilling(true);
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/api/credits/refill', {
+      const res = await fetch('https://webtoai-backend.onrender.com/api/credits/refill', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -388,7 +388,7 @@ ${targetedPrompt}
     const authToken = token || localStorage.getItem('token');
     setDeploying(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/deploy/${id}`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/deploy/${id}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${authToken}` }
       });
@@ -450,7 +450,7 @@ ${targetedPrompt}
     try {
       localStorage.setItem('gh_token', githubTokenInput.trim());
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/github/push/${id}`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/github/push/${id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -980,7 +980,7 @@ ${targetedPrompt}
               <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800/80 space-y-1">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Google Search Preview</span>
                 <p className="text-xs font-semibold text-blue-400 truncate">{seoTitle || 'Project Title'}</p>
-                <p className="text-[11px] text-emerald-400 truncate">http://localhost:5000/live/{seoSlug || 'my-app'}</p>
+                <p className="text-[11px] text-emerald-400 truncate">https://webtoai-backend.onrender.com/live/{seoSlug || 'my-app'}</p>
                 <p className="text-[11px] text-slate-400 line-clamp-2">{seoDescription || 'No description provided.'}</p>
               </div>
 

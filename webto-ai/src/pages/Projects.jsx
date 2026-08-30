@@ -41,7 +41,7 @@ export default function Projects() {
     try {
       setLoading(true);
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/projects`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/projects`, {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       if (res.ok) {
@@ -78,7 +78,7 @@ export default function Projects() {
     setCreating(true);
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/api/projects', {
+      const res = await fetch('https://webtoai-backend.onrender.com/api/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,7 +112,7 @@ export default function Projects() {
 
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/projects/${editingProject.id}`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/projects/${editingProject.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -136,7 +136,7 @@ export default function Projects() {
     setDeleting(true);
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/projects/${projectToDelete.id}`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/projects/${projectToDelete.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${authToken}` }
       });

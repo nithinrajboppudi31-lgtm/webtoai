@@ -68,7 +68,7 @@ export default function Home() {
     }
 
     try {
-      const res = await fetch('http://localhost:5000/api/projects', {
+      const res = await fetch('https://webtoai-backend.onrender.com/api/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -96,7 +96,7 @@ export default function Home() {
       console.error('Project creation failed:', err);
       setError(
         err.message.includes('fetch') 
-          ? 'Cannot connect to backend server at http://localhost:5000. Please ensure the server terminal is running.'
+          ? 'Cannot connect to backend server at https://webtoai-backend.onrender.com. Please ensure the server terminal is running.'
           : err.message
       );
     } finally {

@@ -19,7 +19,7 @@ export default function Explore() {
   const fetchCommunityProjects = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/explore');
+      const res = await fetch('https://webtoai-backend.onrender.com/api/explore');
       const data = await res.json();
       if (res.ok && data.projects) {
         setProjects(data.projects);
@@ -40,7 +40,7 @@ export default function Explore() {
 
     setForkingId(projectId);
     try {
-      const res = await fetch(`http://localhost:5000/api/projects/${projectId}/fork`, {
+      const res = await fetch(`https://webtoai-backend.onrender.com/api/projects/${projectId}/fork`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${authToken}` },
       });

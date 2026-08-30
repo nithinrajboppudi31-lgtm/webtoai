@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import Rea.t, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
 
@@ -13,7 +13,7 @@ export function AuthProvider({ children }) {
     if (!activeToken) return null;
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/me', {
+      const res = await fetch('https://webtoai-backend.onrender.com/api/auth/me', {
         headers: { Authorization: `Bearer ${activeToken}` },
       });
 

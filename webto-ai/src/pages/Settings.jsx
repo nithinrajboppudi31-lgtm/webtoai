@@ -27,7 +27,7 @@ export default function Settings() {
     setProfileMsg({ type: '', text: '' });
 
     try {
-      const res = await fetch('http://localhost:5000/api/user/profile', {
+      const res = await fetch('https://webtoai-backend.onrender.com/api/user/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -64,7 +64,7 @@ export default function Settings() {
     }
 
     try {
-      const res = await fetch('http://localhost:5000/api/user/change-password', {
+      const res = await fetch('https://webtoai-backend.onrender.com/api/user/change-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

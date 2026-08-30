@@ -63,7 +63,7 @@ export default function Credits() {
     setLoadingTx(true);
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/api/payments/transactions', {
+      const res = await fetch('https://webtoai-backend.onrender.com/api/payments/transactions', {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       const data = await res.json();
@@ -86,7 +86,7 @@ export default function Credits() {
       const authToken = token || localStorage.getItem('token');
 
       // 1. Create order on backend
-      const res = await fetch('http://localhost:5000/api/payments/create-order', {
+      const res = await fetch('https://webtoai-backend.onrender.com/api/payments/create-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -114,7 +114,7 @@ export default function Credits() {
         handler: async function (response) {
           try {
             // 3. Verify payment signature on backend
-            const verifyRes = await fetch('http://localhost:5000/api/payments/verify', {
+            const verifyRes = await fetch('https://webtoai-backend.onrender.com/api/payments/verify', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
