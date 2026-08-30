@@ -33,10 +33,10 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      const response = await fetch('https://webtoai-backend.onrender.com/api/auth/signup', {
+      const response = await fetch('https://webtoai-backend.onrender.com/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email: email.trim(), password }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
       });
 
       const data = await response.json();
@@ -45,8 +45,10 @@ export default function Signup() {
         throw new Error(data.error || 'Failed to sign up');
       }
 
-      // login expects (token, user)
-      login(data.token, data.user);
+      // Save user session
+      if (data.token && data.user) {
+        login(data.token, data.user);
+      }
       navigate('/');
     } catch (err) {
       setError(err.message || 'Unable to connect to registration service.');
@@ -123,9 +125,11 @@ export default function Signup() {
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">Full Name</label>
             <div className="relative">
-              <User className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
+              <User className="w-4 h-4 text-gray-400 absolute left-3.5 top-3 pointer-events-none" />
               <input
                 type="text"
+                name="name"
+                autoComplete="name"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -138,9 +142,11 @@ export default function Signup() {
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">Email address</label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
+              <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-3 pointer-events-none" />
               <input
                 type="email"
+                name="email"
+                autoComplete="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -153,9 +159,11 @@ export default function Signup() {
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">Password</label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
+              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3 pointer-events-none" />
               <input
                 type={showPassword ? 'text' : 'password'}
+                name="password"
+                autoComplete="new-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -165,7 +173,7 @@ export default function Signup() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 transition"
+                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 transition cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -175,9 +183,11 @@ export default function Signup() {
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">Confirm Password</label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
+              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3 pointer-events-none" />
               <input
                 type={showConfirmPassword ? 'text' : 'password'}
+                name="confirmPassword"
+                autoComplete="new-password"
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -187,7 +197,7 @@ export default function Signup() {
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 transition"
+                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 transition cursor-pointer"
               >
                 {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>

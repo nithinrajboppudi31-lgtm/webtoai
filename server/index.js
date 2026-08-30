@@ -62,14 +62,25 @@ app.get('/health', (req, res) => {
 
 // Nodemailer SMTP Transporter
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    pass: process.env.EMAIL_PASS ? process.env.EMAIL_PASS.replace(/\s+/g, '') : '',
   },
 });
+
+// Verify SMTP connection on server startup
+if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+  transporter.verify((error) => {
+    if (error) {
+      console.error('❌ Gmail SMTP Verification Failed:', error.message);
+    } else {
+      console.log('✅ Gmail SMTP Server is ready to send emails');
+    }
+  });
+} else {
+  console.warn('⚠️ EMAIL_USER or EMAIL_PASS not set. Emails will be logged to console only.');
+}
 
 // Helper to generate an 8-character alphanumeric code
 const generate8CharCode = () => {
@@ -153,6 +164,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    const cleanInputPassword = password.trim();
     const user = await prisma.user.findUnique({ where: { email: cleanEmail } });
     if (!user) {
       return res.status(400).json({ error: 'Invalid credentials.' });
@@ -161,18 +173,20 @@ app.post('/api/auth/login', async (req, res) => {
     let isAuthenticated = false;
 
     // 1. Check permanent password
-    const isPasswordMatch = await bcrypt.compare(password, user.password);
+    const isPasswordMatch = await bcrypt.compare(cleanInputPassword, user.password);
     if (isPasswordMatch) {
       isAuthenticated = true;
     } else if (user.resetPasswordToken && user.resetPasswordExpires) {
       // 2. Check temporary 8-character reset code
       const isNotExpired = new Date() < new Date(user.resetPasswordExpires);
-      const isCodeMatch = await bcrypt.compare(password.trim().toUpperCase(), user.resetPasswordToken);
+      const isCodeMatch =
+        (await bcrypt.compare(cleanInputPassword.toUpperCase(), user.resetPasswordToken)) ||
+        (await bcrypt.compare(cleanInputPassword, user.resetPasswordToken));
 
       if (isNotExpired && isCodeMatch) {
         isAuthenticated = true;
 
-        const tempHashedCode = await bcrypt.hash(password.trim().toUpperCase(), 10);
+        const tempHashedCode = await bcrypt.hash(cleanInputPassword.toUpperCase(), 10);
         await prisma.user.update({
           where: { id: user.id },
           data: {
@@ -252,11 +266,12 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     // Send email in background asynchronously
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      transporter
-        .sendMail({
+      transporter.sendMail(
+        {
           from: `"WEBTO AI Security" <${process.env.EMAIL_USER}>`,
           to: cleanEmail,
           subject: 'Your WEBTO AI Temporary Access Code',
+          text: `Your temporary access code is: ${resetCode}`,
           html: `
             <div style="background-color: #070b14; color: #ffffff; padding: 32px; font-family: sans-serif; border-radius: 16px; max-width: 480px; margin: 0 auto;">
               <h2 style="color: #60a5fa; margin-bottom: 8px;">WEBTO AI</h2>
@@ -268,10 +283,15 @@ app.post('/api/auth/forgot-password', async (req, res) => {
               <p style="color: #64748b; font-size: 12px;">Once signed in, you can update your permanent password anytime under Account Settings.</p>
             </div>
           `,
-        })
-        .catch((mailErr) => {
-          console.warn('[SMTP Dispatch Error]:', mailErr.message);
-        });
+        },
+        (err, info) => {
+          if (err) {
+            console.error('❌ Background Email Dispatch Error:', err.message);
+          } else {
+            console.log('✅ Email successfully dispatched:', info.response);
+          }
+        }
+      );
     }
   } catch (err) {
     console.error('Reset code error:', err);
@@ -767,7 +787,7 @@ const TEMPLATES_DATA = [
     </div>
   </main>
 </body>
-</html>`
+</html>`,
   },
   {
     id: 'fintech-dashboard',
@@ -817,7 +837,7 @@ const TEMPLATES_DATA = [
     </div>
   </main>
 </body>
-</html>`
+</html>`,
   },
   {
     id: 'portfolio-showcase',
@@ -856,8 +876,8 @@ const TEMPLATES_DATA = [
     </div>
   </section>
 </body>
-</html>`
-  }
+</html>`,
+  },
 ];
 
 app.get('/api/templates', (req, res) => {

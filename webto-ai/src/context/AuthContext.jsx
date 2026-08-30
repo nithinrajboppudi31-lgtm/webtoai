@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const AuthContext = createContext();
 
@@ -7,8 +7,15 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(localStorage.getItem('token') || null);
   const [loading, setLoading] = useState(true);
 
+  const logout = useCallback(() => {
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  }, []);
+
   // Fetch the latest user profile and credit count directly from the backend
-  const refreshUser = async (authToken) => {
+  const refreshUser = useCallback(async (authToken) => {
     const activeToken = authToken || token || localStorage.getItem('token');
     if (!activeToken) return null;
 
@@ -31,7 +38,7 @@ export function AuthProvider({ children }) {
       console.error('Failed to sync user data from backend:', err);
     }
     return null;
-  };
+  }, [token, logout]);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -39,11 +46,13 @@ export function AuthProvider({ children }) {
       const savedToken = localStorage.getItem('token');
 
       if (savedToken) {
+        setToken(savedToken);
         if (savedUser) {
           try {
             setUser(JSON.parse(savedUser));
           } catch (err) {
             console.error('Failed to parse saved user', err);
+            localStorage.removeItem('user');
           }
         }
         // Sync with backend to get fresh credits immediately
@@ -53,22 +62,18 @@ export function AuthProvider({ children }) {
     };
 
     initAuth();
-  }, []);
+  }, [refreshUser]);
 
   const login = (newToken, newUser) => {
     setToken(newToken);
-    setUser(newUser);
-    localStorage.setItem('token', newToken);
-    localStorage.setItem('user', JSON.stringify(newUser));
-    // Fetch fresh database record right after login
-    refreshUser(newToken);
-  };
-
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    if (newUser) {
+      setUser(newUser);
+      localStorage.setItem('user', JSON.stringify(newUser));
+    }
+    if (newToken) {
+      localStorage.setItem('token', newToken);
+      refreshUser(newToken);
+    }
   };
 
   const updateUser = (updatedFields) => {
