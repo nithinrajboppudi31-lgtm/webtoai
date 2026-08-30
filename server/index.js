@@ -212,9 +212,21 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       });
     }
 
-    try {
-      if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-        await transporter.sendMail({
+    console.log(`\n========================================`);
+    console.log(`🔑 TEMPORARY 8-CHAR CODE FOR [${cleanEmail}]: ${resetCode}`);
+    console.log(`========================================\n`);
+
+    // Return instant response to user interface immediately
+    res.json({
+      success: true,
+      message: `An 8-character temporary code has been sent to ${cleanEmail}.`,
+      code: resetCode,
+    });
+
+    // Send email in background asynchronously
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      transporter
+        .sendMail({
           from: `"WEBTO AI Security" <${process.env.EMAIL_USER}>`,
           to: cleanEmail,
           subject: 'Your WEBTO AI Temporary Access Code',
@@ -229,21 +241,11 @@ app.post('/api/auth/forgot-password', async (req, res) => {
               <p style="color: #64748b; font-size: 12px;">Once signed in, you can update your permanent password anytime under Account Settings.</p>
             </div>
           `,
+        })
+        .catch((mailErr) => {
+          console.warn('[SMTP Notice - Logged locally]:', mailErr.message);
         });
-      }
-    } catch (mailErr) {
-      console.warn('[SMTP Notice - Logged locally]:', mailErr.message);
     }
-
-    console.log(`\n========================================`);
-    console.log(`🔑 TEMPORARY 8-CHAR CODE FOR [${cleanEmail}]: ${resetCode}`);
-    console.log(`========================================\n`);
-
-    return res.json({
-      success: true,
-      message: `An 8-character temporary code has been sent to ${cleanEmail}.`,
-      code: resetCode,
-    });
   } catch (err) {
     console.error('Reset code error:', err);
     return res.status(500).json({ error: 'Failed to generate reset code.' });
