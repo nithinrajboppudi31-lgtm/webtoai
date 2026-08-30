@@ -25,22 +25,40 @@ const JWT_SECRET = process.env.JWT_SECRET || 'webto_ai_super_secure_jwt_secret_k
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
+  'http://localhost:5000',
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
+// CORS configuration supporting dynamic Vercel preview/production domains
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Allow server-to-server requests, mobile apps, Postman, curl
+      if (!origin) return callback(null, true);
+
+      // Allow any vercel.app deployment, localhost ports, or configured CLIENT_URL
+      if (
+        origin.endsWith('.vercel.app') ||
+        allowedOrigins.includes(origin) ||
+        origin.startsWith('http://localhost:')
+      ) {
         return callback(null, true);
       }
+
       return callback(new Error('Blocked by CORS policy'));
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
 app.use(express.json());
+
+// Health Check Endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
 
 // Nodemailer SMTP Transporter
 const transporter = nodemailer.createTransport({
@@ -103,16 +121,17 @@ app.post('/api/auth/register', async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
-    const existing = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    const cleanEmail = email.trim().toLowerCase();
+    const existing = await prisma.user.findUnique({ where: { email: cleanEmail } });
     if (existing) {
       return res.status(400).json({ error: 'Email is already registered.' });
     }
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
       data: {
-        email: email.trim().toLowerCase(),
+        email: cleanEmail,
         password: hashedPassword,
-        name: name || email.split('@')[0],
+        name: name || cleanEmail.split('@')[0],
         freeBuildsUsed: 0,
         freeBuildsTotal: 3,
         role: 'USER',
@@ -133,7 +152,8 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
-    const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email: cleanEmail } });
     if (!user) {
       return res.status(400).json({ error: 'Invalid credentials.' });
     }
@@ -191,8 +211,9 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     const cleanEmail = email.trim().toLowerCase();
     let user = await prisma.user.findUnique({ where: { email: cleanEmail } });
 
-    const resetCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const resetCode = generate8CharCode();
     const hashedCode = await bcrypt.hash(resetCode, 10);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
     if (!user) {
       user = await prisma.user.create({
@@ -200,6 +221,8 @@ app.post('/api/auth/forgot-password', async (req, res) => {
           email: cleanEmail,
           name: cleanEmail.split('@')[0],
           password: hashedCode,
+          resetPasswordToken: hashedCode,
+          resetPasswordExpires: expiresAt,
           freeBuildsUsed: 0,
           freeBuildsTotal: 3,
           role: 'USER',
@@ -208,7 +231,11 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     } else {
       await prisma.user.update({
         where: { id: user.id },
-        data: { password: hashedCode },
+        data: {
+          password: hashedCode,
+          resetPasswordToken: hashedCode,
+          resetPasswordExpires: expiresAt,
+        },
       });
     }
 
@@ -216,7 +243,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     console.log(`🔑 TEMPORARY 8-CHAR CODE FOR [${cleanEmail}]: ${resetCode}`);
     console.log(`========================================\n`);
 
-    // Return instant response to user interface immediately
+    // Return instant response to UI immediately
     res.json({
       success: true,
       message: `An 8-character temporary code has been sent to ${cleanEmail}.`,
@@ -243,7 +270,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
           `,
         })
         .catch((mailErr) => {
-          console.warn('[SMTP Notice - Logged locally]:', mailErr.message);
+          console.warn('[SMTP Dispatch Error]:', mailErr.message);
         });
     }
   } catch (err) {
@@ -405,7 +432,6 @@ app.post('/api/generate/:id', authenticate, async (req, res) => {
       });
     }
 
-    // Snapshot checkpoint in history & update project entryHtml
     await prisma.projectVersion.create({
       data: {
         projectId: id,
@@ -419,7 +445,6 @@ app.post('/api/generate/:id', authenticate, async (req, res) => {
       data: { entryHtml: generatedData.entryHtml },
     });
 
-    // Deduct quota
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
       data: { freeBuildsUsed: { increment: 1 } },
