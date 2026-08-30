@@ -45,7 +45,6 @@ export default function Signup() {
         throw new Error(data.error || 'Failed to sign up');
       }
 
-      // Save user session
       if (data.token && data.user) {
         login(data.token, data.user);
       }
@@ -59,10 +58,10 @@ export default function Signup() {
 
   return (
     <div className="min-h-screen bg-[#F8F9FD] flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-gray-100 shadow-[0_12px_40px_rgba(124,58,237,0.08)]">
+      <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-gray-100 shadow-[0_12px_40px_rgba(124,58,237,0.08)] text-gray-900">
         {/* Brand Header */}
         <div className="flex flex-col items-center mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-brand-500/30 mb-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 mb-3">
             <Sparkles className="w-6 h-6" />
           </div>
           <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Create your account</h1>
@@ -70,8 +69,8 @@ export default function Signup() {
         </div>
 
         {/* Free Builds Promo Tag */}
-        <div className="mb-6 p-3 bg-brand-50 border border-brand-200/60 rounded-2xl flex items-center gap-2.5 text-brand-700">
-          <div className="w-7 h-7 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0">
+        <div className="mb-6 p-3 bg-blue-50 border border-blue-200/60 rounded-2xl flex items-center gap-2.5 text-blue-700">
+          <div className="w-7 h-7 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
             <Gift className="w-4 h-4" />
           </div>
           <p className="text-xs font-semibold">
@@ -90,7 +89,7 @@ export default function Signup() {
         <button
           type="button"
           onClick={() => alert('Official Google Sign-In connects automatically with your Client ID.')}
-          className="w-full py-2.5 px-4 bg-white border border-gray-200 hover:border-brand-300 rounded-xl text-xs font-semibold text-gray-700 flex items-center justify-center gap-2.5 transition-all shadow-sm mb-5 cursor-pointer"
+          className="w-full py-2.5 px-4 bg-white border border-gray-200 hover:border-blue-300 rounded-xl text-xs font-semibold text-gray-700 flex items-center justify-center gap-2.5 transition-all shadow-sm mb-5 cursor-pointer"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
             <path
@@ -134,7 +133,7 @@ export default function Signup() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="John Doe"
-                className="w-full text-xs pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-500 transition-colors"
+                className="w-full text-xs pl-10 pr-4 py-2.5 bg-gray-50 text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl focus:bg-white focus:text-gray-900 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
           </div>
@@ -151,7 +150,7 @@ export default function Signup() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@domain.com"
-                className="w-full text-xs pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-500 transition-colors"
+                className="w-full text-xs pl-10 pr-4 py-2.5 bg-gray-50 text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl focus:bg-white focus:text-gray-900 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
           </div>
@@ -168,7 +167,7 @@ export default function Signup() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full text-xs pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-500 transition-colors"
+                className="w-full text-xs pl-10 pr-10 py-2.5 bg-gray-50 text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl focus:bg-white focus:text-gray-900 focus:outline-none focus:border-blue-500 transition-colors"
               />
               <button
                 type="button"
@@ -192,7 +191,7 @@ export default function Signup() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full text-xs pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-500 transition-colors"
+                className="w-full text-xs pl-10 pr-10 py-2.5 bg-gray-50 text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl focus:bg-white focus:text-gray-900 focus:outline-none focus:border-blue-500 transition-colors"
               />
               <button
                 type="button"
@@ -207,7 +206,7 @@ export default function Signup() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:opacity-95 text-white text-xs font-semibold shadow-md shadow-brand-500/25 flex items-center justify-center gap-2 transition-all mt-3 cursor-pointer disabled:opacity-50"
+            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white text-xs font-semibold shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 transition-all mt-3 cursor-pointer disabled:opacity-50"
           >
             <span>{loading ? 'Creating account...' : 'Create Account'}</span>
             <ArrowRight className="w-4 h-4" />
@@ -216,7 +215,7 @@ export default function Signup() {
 
         <p className="text-center text-xs text-gray-500 mt-6">
           Already have an account?{' '}
-          <Link to="/login" className="font-semibold text-brand-600 hover:underline cursor-pointer">
+          <Link to="/login" className="font-semibold text-blue-600 hover:underline cursor-pointer">
             Sign in
           </Link>
         </p>

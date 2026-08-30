@@ -60,13 +60,22 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', uptime: process.uptime() });
 });
 
-// Nodemailer SMTP Transporter
+// Nodemailer SMTP Transporter configured for Render cloud networks
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // TLS via STARTTLS
+  family: 4,     // Force IPv4 to bypass ENETUNREACH on Render
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS ? process.env.EMAIL_PASS.replace(/\s+/g, '') : '',
   },
+  tls: {
+    rejectUnauthorized: false,
+  },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
 });
 
 // Verify SMTP connection on server startup
