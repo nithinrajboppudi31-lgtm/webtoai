@@ -1,3 +1,10 @@
+import dns from 'dns';
+
+// Force Node.js to resolve IPv4 addresses first (Fixes Render ENETUNREACH error)
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import express from 'express';
@@ -6,13 +13,9 @@ import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
-import dns from 'dns'; // <--- 1. ADD THIS
 import { PrismaClient } from '@prisma/client';
 import { Octokit } from '@octokit/rest';
 import { generateProjectCode, generateChatReply } from './services/aiService.js';
-
-// 2. FORCE NODE TO ALWAYS RESOLVE IPV4 FIRST (Fixes Render ENETUNREACH)
-dns.setDefaultResultOrder('ipv4first');
 
 dotenv.config();
 
@@ -65,7 +68,6 @@ app.get('/health', (req, res) => {
 });
 
 // Nodemailer SMTP Transporter configured for Render cloud networks
-// Nodemailer SMTP Transporter configured for Render cloud networks
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
@@ -77,6 +79,9 @@ const transporter = nodemailer.createTransport({
   tls: {
     rejectUnauthorized: false,
   },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
 });
 
 // Verify SMTP connection on server startup
