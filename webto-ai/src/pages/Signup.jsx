@@ -57,19 +57,19 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FD] flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-gray-100 shadow-[0_12px_40px_rgba(124,58,237,0.08)] text-gray-900">
+    <div className="min-h-screen bg-[#070b14] flex items-center justify-center p-4 text-slate-100 font-sans">
+      <div className="max-w-md w-full bg-[#0c1322] rounded-3xl p-8 border border-slate-800 shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
         {/* Brand Header */}
         <div className="flex flex-col items-center mb-6">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 mb-3">
             <Sparkles className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Create your account</h1>
-          <p className="text-xs text-gray-500 mt-1">Start building web applications in minutes</p>
+          <h1 className="text-2xl font-extrabold text-white tracking-tight">Create your account</h1>
+          <p className="text-xs text-slate-400 mt-1">Start building web applications in minutes</p>
         </div>
 
         {/* Free Builds Promo Tag */}
-        <div className="mb-6 p-3 bg-blue-50 border border-blue-200/60 rounded-2xl flex items-center gap-2.5 text-blue-700">
+        <div className="mb-6 p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center gap-2.5 text-blue-400">
           <div className="w-7 h-7 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
             <Gift className="w-4 h-4" />
           </div>
@@ -79,7 +79,7 @@ export default function Signup() {
         </div>
 
         {error && (
-          <div className="mb-6 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700 text-xs font-medium">
+          <div className="mb-6 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-2 text-rose-400 text-xs font-medium">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -89,7 +89,7 @@ export default function Signup() {
         <button
           type="button"
           onClick={() => alert('Official Google Sign-In connects automatically with your Client ID.')}
-          className="w-full py-2.5 px-4 bg-white border border-gray-200 hover:border-blue-300 rounded-xl text-xs font-semibold text-gray-700 flex items-center justify-center gap-2.5 transition-all shadow-sm mb-5 cursor-pointer"
+          className="w-full py-2.5 px-4 bg-[#111a2e] border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-semibold text-slate-300 hover:text-white flex items-center justify-center gap-2.5 transition-all shadow-sm mb-5 cursor-pointer"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
             <path
@@ -113,8 +113,8 @@ export default function Signup() {
         </button>
 
         <div className="relative flex items-center justify-center mb-6">
-          <div className="border-t border-gray-200 w-full"></div>
-          <span className="bg-white px-3 text-[11px] uppercase tracking-wider text-gray-400 font-semibold absolute">
+          <div className="border-t border-slate-800 w-full"></div>
+          <span className="bg-[#0c1322] px-3 text-[11px] uppercase tracking-wider text-slate-500 font-semibold absolute">
             or email
           </span>
         </div>
@@ -122,9 +122,9 @@ export default function Signup() {
         {/* Signup Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Full Name</label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Full Name</label>
             <div className="relative">
-              <User className="w-4 h-4 text-gray-400 absolute left-3.5 top-3 pointer-events-none" />
+              <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3 pointer-events-none" />
               <input
                 type="text"
                 name="name"
@@ -133,15 +133,15 @@ export default function Signup() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="John Doe"
-                className="w-full text-xs pl-10 pr-4 py-2.5 bg-gray-50 text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl focus:bg-white focus:text-gray-900 focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full text-xs pl-10 pr-4 py-2.5 bg-[#111a2e] text-white placeholder:text-slate-500 border border-slate-800 rounded-xl focus:bg-[#16223b] focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Email address</label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Email address</label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-3 pointer-events-none" />
+              <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3 pointer-events-none" />
               <input
                 type="email"
                 name="email"
@@ -150,15 +150,15 @@ export default function Signup() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@domain.com"
-                className="w-full text-xs pl-10 pr-4 py-2.5 bg-gray-50 text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl focus:bg-white focus:text-gray-900 focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full text-xs pl-10 pr-4 py-2.5 bg-[#111a2e] text-white placeholder:text-slate-500 border border-slate-800 rounded-xl focus:bg-[#16223b] focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Password</label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Password</label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3 pointer-events-none" />
+              <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3 pointer-events-none" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 name="password"
@@ -167,12 +167,12 @@ export default function Signup() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full text-xs pl-10 pr-10 py-2.5 bg-gray-50 text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl focus:bg-white focus:text-gray-900 focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full text-xs pl-10 pr-10 py-2.5 bg-[#111a2e] text-white placeholder:text-slate-500 border border-slate-800 rounded-xl focus:bg-[#16223b] focus:outline-none focus:border-blue-500 transition-colors"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 transition cursor-pointer"
+                className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 transition cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -180,9 +180,9 @@ export default function Signup() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Confirm Password</label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Confirm Password</label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3 pointer-events-none" />
+              <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3 pointer-events-none" />
               <input
                 type={showConfirmPassword ? 'text' : 'password'}
                 name="confirmPassword"
@@ -191,12 +191,12 @@ export default function Signup() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full text-xs pl-10 pr-10 py-2.5 bg-gray-50 text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl focus:bg-white focus:text-gray-900 focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full text-xs pl-10 pr-10 py-2.5 bg-[#111a2e] text-white placeholder:text-slate-500 border border-slate-800 rounded-xl focus:bg-[#16223b] focus:outline-none focus:border-blue-500 transition-colors"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 transition cursor-pointer"
+                className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 transition cursor-pointer"
               >
                 {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -213,9 +213,9 @@ export default function Signup() {
           </button>
         </form>
 
-        <p className="text-center text-xs text-gray-500 mt-6">
+        <p className="text-center text-xs text-slate-400 mt-6">
           Already have an account?{' '}
-          <Link to="/login" className="font-semibold text-blue-600 hover:underline cursor-pointer">
+          <Link to="/login" className="font-semibold text-blue-400 hover:underline cursor-pointer">
             Sign in
           </Link>
         </p>

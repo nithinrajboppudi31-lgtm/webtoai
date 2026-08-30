@@ -6,9 +6,13 @@ import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
+import dns from 'dns'; // <--- 1. ADD THIS
 import { PrismaClient } from '@prisma/client';
 import { Octokit } from '@octokit/rest';
 import { generateProjectCode, generateChatReply } from './services/aiService.js';
+
+// 2. FORCE NODE TO ALWAYS RESOLVE IPV4 FIRST (Fixes Render ENETUNREACH)
+dns.setDefaultResultOrder('ipv4first');
 
 dotenv.config();
 
@@ -61,11 +65,11 @@ app.get('/health', (req, res) => {
 });
 
 // Nodemailer SMTP Transporter configured for Render cloud networks
+// Nodemailer SMTP Transporter configured for Render cloud networks
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
-  secure: false, // TLS via STARTTLS
-  family: 4,     // Force IPv4 to bypass ENETUNREACH on Render
+  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS ? process.env.EMAIL_PASS.replace(/\s+/g, '') : '',
@@ -73,9 +77,6 @@ const transporter = nodemailer.createTransport({
   tls: {
     rejectUnauthorized: false,
   },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
 });
 
 // Verify SMTP connection on server startup
