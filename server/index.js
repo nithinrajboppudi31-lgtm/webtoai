@@ -390,30 +390,39 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       });
     }
 
-    res.json({
+    console.log('------------------------------------');
+    console.log(`>>> USER PASSWORD RESET CODE FOR ${cleanEmail}: ${resetCode} <<<`);
+    console.log('------------------------------------');
+
+    if (resend) {
+      try {
+        const sendResult = await resend.emails.send({
+          from: 'onboarding@resend.dev',
+          to: [cleanEmail],
+          subject: 'Your WEBTO AI Temporary Access Code',
+          text: `Your WEBTO AI temporary access code is: ${resetCode}. It expires in 15 minutes.`,
+          html: `
+            <div style="background-color:#070b14; color:#ffffff; padding:32px; font-family:Arial,sans-serif; border-radius:16px; max-width:480px; margin:0 auto;">
+              <h2 style="color:#60a5fa; margin-bottom:8px;">WEBTO AI</h2>
+              <h3 style="color:#ffffff; margin-top:0;">Temporary Access Code</h3>
+              <p style="color:#94a3b8; font-size:13px;">We received a request to reset your WEBTO AI password.</p>
+              <div style="margin:24px 0; padding:16px; background:#0e1626; border:1px solid #1e293b; border-radius:12px; text-align:center;">
+                <span style="font-family:monospace; font-size:24px; letter-spacing:4px; font-weight:bold; color:#38bdf8;">${resetCode}</span>
+              </div>
+              <p style="color:#94a3b8; font-size:12px;">This code expires in 15 minutes.</p>
+            </div>
+          `,
+        });
+        console.log('✅ Resend User Reset Success:', JSON.stringify(sendResult));
+      } catch (emailErr) {
+        console.error('❌ Resend User Reset Error:', emailErr);
+      }
+    }
+
+    return res.json({
       success: true,
       message: 'If an account exists for this email, a reset code has been sent.',
     });
-
-    if (resend) {
-      resend.emails.send({
-        from: 'onboarding@resend.dev',
-        to: [cleanEmail],
-        subject: 'Your WEBTO AI Temporary Access Code',
-        text: `Your WEBTO AI temporary access code is: ${resetCode}. It expires in 15 minutes.`,
-        html: `
-          <div style="background-color:#070b14; color:#ffffff; padding:32px; font-family:Arial,sans-serif; border-radius:16px; max-width:480px; margin:0 auto;">
-            <h2 style="color:#60a5fa; margin-bottom:8px;">WEBTO AI</h2>
-            <h3 style="color:#ffffff; margin-top:0;">Temporary Access Code</h3>
-            <p style="color:#94a3b8; font-size:13px;">We received a request to reset your WEBTO AI password.</p>
-            <div style="margin:24px 0; padding:16px; background:#0e1626; border:1px solid #1e293b; border-radius:12px; text-align:center;">
-              <span style="font-family:monospace; font-size:24px; letter-spacing:4px; font-weight:bold; color:#38bdf8;">${resetCode}</span>
-            </div>
-            <p style="color:#94a3b8; font-size:12px;">This code expires in 15 minutes.</p>
-          </div>
-        `,
-      }).catch((emailError) => console.error('Email error:', emailError.message));
-    }
   } catch (err) {
     console.error('Reset code error:', err);
     return res.status(500).json({ error: 'Failed to generate reset code.' });
