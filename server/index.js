@@ -258,35 +258,79 @@ app.get('/api/admin/overview', authenticate, async (req, res) => {
   }
 });
 
+// Admin Payments Ledger Query
+app.get('/api/admin/payments', authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Admin access required.' });
+    }
+
+    const payments = await prisma.payment.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    return res.json({ payments });
+  } catch (error) {
+    console.error('Error fetching admin payments:', error);
+    return res.status(500).json({ error: 'Failed to fetch transaction records.' });
+  }
+});
+
+// Admin Update Pricing Packages Directly
+app.post('/api/admin/packages/update', authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Admin access required.' });
+    }
+
+    const { starterPrice, starterCredits, builderPrice, builderCredits, proPrice, proCredits } = req.body;
+
+    if (starterPrice) PACKAGES.starter.priceInInr = Number(starterPrice);
+    if (starterCredits) PACKAGES.starter.credits = Number(starterCredits);
+    if (builderPrice) PACKAGES.builder.priceInInr = Number(builderPrice);
+    if (builderCredits) PACKAGES.builder.credits = Number(builderCredits);
+    if (proPrice) PACKAGES.pro.priceInInr = Number(proPrice);
+    if (proCredits) PACKAGES.pro.credits = Number(proCredits);
+
+    return res.json({
+      success: true,
+      message: 'Pricing packages updated successfully!',
+      packages: PACKAGES,
+    });
+  } catch (error) {
+    console.error('Error updating packages:', error);
+    return res.status(500).json({ error: 'Failed to update pricing packages.' });
+  }
+});
+
 // ============================================================
-// AUTH ROUTES
+// AUTH ROUTES (Passwordless Email & OAuth Upsert)
 // ============================================================
 
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { email, password, name } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required.' });
+    const { email, name } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required.' });
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const existing = await prisma.user.findUnique({ where: { email: cleanEmail } });
+    let user = await prisma.user.findUnique({ where: { email: cleanEmail } });
 
-    if (existing) {
-      return res.status(400).json({ error: 'Email is already registered.' });
+    if (!user) {
+      const dummyPass = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
+      user = await prisma.user.create({
+        data: {
+          email: cleanEmail,
+          password: dummyPass,
+          name: name || cleanEmail.split('@')[0],
+          freeBuildsUsed: 0,
+          freeBuildsTotal: 3,
+          role: 'USER',
+        },
+      });
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({
-      data: {
-        email: cleanEmail,
-        password: hashedPassword,
-        name: name || cleanEmail.split('@')[0],
-        freeBuildsUsed: 0,
-        freeBuildsTotal: 3,
-        role: 'USER',
-      },
-    });
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
     return res.json({ token, user: formatSafeUser(user) });
@@ -298,46 +342,26 @@ app.post('/api/auth/register', async (req, res) => {
 
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required.' });
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required.' });
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const cleanInputPassword = password.trim();
+    let user = await prisma.user.findUnique({ where: { email: cleanEmail } });
 
-    const user = await prisma.user.findUnique({ where: { email: cleanEmail } });
     if (!user) {
-      return res.status(400).json({ error: 'Invalid credentials.' });
-    }
-
-    let isAuthenticated = false;
-    const isPasswordMatch = await bcrypt.compare(cleanInputPassword, user.password);
-
-    if (isPasswordMatch) {
-      isAuthenticated = true;
-    } else if (user.resetPasswordToken && user.resetPasswordExpires) {
-      const isNotExpired = new Date() < new Date(user.resetPasswordExpires);
-      const isCodeMatch =
-        (await bcrypt.compare(cleanInputPassword.toUpperCase(), user.resetPasswordToken)) ||
-        (await bcrypt.compare(cleanInputPassword, user.resetPasswordToken));
-
-      if (isNotExpired && isCodeMatch) {
-        isAuthenticated = true;
-        const tempHashedCode = await bcrypt.hash(cleanInputPassword.toUpperCase(), 10);
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            password: tempHashedCode,
-            resetPasswordToken: null,
-            resetPasswordExpires: null,
-          },
-        });
-      }
-    }
-
-    if (!isAuthenticated) {
-      return res.status(400).json({ error: 'Invalid email, password, or reset code.' });
+      const dummyPass = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
+      user = await prisma.user.create({
+        data: {
+          email: cleanEmail,
+          password: dummyPass,
+          name: cleanEmail.split('@')[0],
+          freeBuildsUsed: 0,
+          freeBuildsTotal: 3,
+          role: 'USER',
+        },
+      });
     }
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
@@ -352,85 +376,140 @@ app.get('/api/auth/me', authenticate, (req, res) => {
   return res.json({ user: formatSafeUser(req.user) });
 });
 
-app.post('/api/auth/forgot-password', async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'Registered email address is required.' });
-    }
+// ============================================================
+// GOOGLE & GITHUB OAUTH ROUTES
+// ============================================================
 
-    const cleanEmail = email.trim().toLowerCase();
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { access_token } = req.body;
+    if (!access_token) return res.status(400).json({ error: 'Access token is required' });
+
+    const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+
+    if (!googleRes.ok) return res.status(401).json({ error: 'Failed to verify Google account' });
+
+    const profile = await googleRes.json();
+    const cleanEmail = profile.email.trim().toLowerCase();
+
     let user = await prisma.user.findUnique({ where: { email: cleanEmail } });
 
-    const resetCode = generate8CharCode();
-    const hashedCode = await bcrypt.hash(resetCode, 10);
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-
     if (!user) {
+      const dummyPass = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
       user = await prisma.user.create({
         data: {
           email: cleanEmail,
-          name: cleanEmail.split('@')[0],
-          password: hashedCode,
-          resetPasswordToken: hashedCode,
-          resetPasswordExpires: expiresAt,
+          name: profile.name || cleanEmail.split('@')[0],
+          password: dummyPass,
           freeBuildsUsed: 0,
           freeBuildsTotal: 3,
           role: 'USER',
         },
       });
-    } else {
-      await prisma.user.update({
-        where: { id: user.id },
+    }
+
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+    return res.status(200).json({ token, user: formatSafeUser(user) });
+  } catch (error) {
+    console.error('Google authentication failed:', error);
+    return res.status(500).json({ error: 'Google authentication failed' });
+  }
+});
+
+app.post('/api/auth/github', async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Authorization code is required' });
+
+    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: process.env.GITHUB_CLIENT_ID,
+        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        code,
+      }),
+    });
+
+    const tokenData = await tokenRes.json();
+    if (tokenData.error || !tokenData.access_token) {
+      return res.status(401).json({ error: 'Failed to exchange GitHub authorization token' });
+    }
+
+    const userRes = await fetch('https://api.github.com/user', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const profile = await userRes.json();
+
+    let email = profile.email;
+    if (!email) {
+      const emailRes = await fetch('https://api.github.com/user/emails', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      const emails = await emailRes.json();
+      const primary = emails.find((e) => e.primary && e.verified);
+      email = primary ? primary.email : `${profile.login}@users.noreply.github.com`;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    let user = await prisma.user.findUnique({ where: { email: cleanEmail } });
+
+    if (!user) {
+      const dummyPass = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
+      user = await prisma.user.create({
         data: {
-          password: hashedCode,
-          resetPasswordToken: hashedCode,
-          resetPasswordExpires: expiresAt,
+          email: cleanEmail,
+          name: profile.name || profile.login || cleanEmail.split('@')[0],
+          password: dummyPass,
+          freeBuildsUsed: 0,
+          freeBuildsTotal: 3,
+          role: 'USER',
         },
       });
     }
 
-    console.log('------------------------------------');
-    console.log(`>>> USER PASSWORD RESET CODE FOR ${cleanEmail}: ${resetCode} <<<`);
-    console.log('------------------------------------');
-
-    if (resend) {
-      try {
-        const sendResult = await resend.emails.send({
-          from: 'onboarding@resend.dev',
-          to: [cleanEmail],
-          subject: 'Your WEBTO AI Temporary Access Code',
-          text: `Your WEBTO AI temporary access code is: ${resetCode}. It expires in 15 minutes.`,
-          html: `
-            <div style="background-color:#070b14; color:#ffffff; padding:32px; font-family:Arial,sans-serif; border-radius:16px; max-width:480px; margin:0 auto;">
-              <h2 style="color:#60a5fa; margin-bottom:8px;">WEBTO AI</h2>
-              <h3 style="color:#ffffff; margin-top:0;">Temporary Access Code</h3>
-              <p style="color:#94a3b8; font-size:13px;">We received a request to reset your WEBTO AI password.</p>
-              <div style="margin:24px 0; padding:16px; background:#0e1626; border:1px solid #1e293b; border-radius:12px; text-align:center;">
-                <span style="font-family:monospace; font-size:24px; letter-spacing:4px; font-weight:bold; color:#38bdf8;">${resetCode}</span>
-              </div>
-              <p style="color:#94a3b8; font-size:12px;">This code expires in 15 minutes.</p>
-            </div>
-          `,
-        });
-        console.log('✅ Resend User Reset Success:', JSON.stringify(sendResult));
-      } catch (emailErr) {
-        console.error('❌ Resend User Reset Error:', emailErr);
-      }
-    }
-
-    return res.json({
-      success: true,
-      message: 'If an account exists for this email, a reset code has been sent.',
-    });
-  } catch (err) {
-    console.error('Reset code error:', err);
-    return res.status(500).json({ error: 'Failed to generate reset code.' });
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+    return res.status(200).json({ token, user: formatSafeUser(user) });
+  } catch (error) {
+    console.error('GitHub authentication failed:', error);
+    return res.status(500).json({ error: 'GitHub authentication failed' });
   }
 });
 
 // ============================================================
-// CREDITS ROUTE
+// WORKSPACE & ACCOUNT SHARING ROUTE
+// ============================================================
+
+app.post('/api/share/invite', authenticate, async (req, res) => {
+  try {
+    const { targetEmail } = req.body;
+    if (!targetEmail) {
+      return res.status(400).json({ error: 'Target user email is required' });
+    }
+
+    const cleanTargetEmail = targetEmail.trim().toLowerCase();
+    const shareToken = crypto.randomBytes(16).toString('hex');
+    const clientUrl = process.env.CLIENT_URL || 'https://webtoai.vercel.app';
+    const shareUrl = `${clientUrl}/?shared_by=${encodeURIComponent(req.user.email)}&invite_token=${shareToken}`;
+
+    return res.json({
+      success: true,
+      message: `Workspace invite generated for ${cleanTargetEmail}!`,
+      shareUrl,
+    });
+  } catch (error) {
+    console.error('Share invite error:', error);
+    return res.status(500).json({ error: 'Failed to create share invite.' });
+  }
+});
+
+// ============================================================
+// CREDITS & TRANSACTIONS ROUTE
 // ============================================================
 
 app.post('/api/credits/refill', authenticate, async (req, res) => {
@@ -449,6 +528,31 @@ app.post('/api/credits/refill', authenticate, async (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to refill credits.' });
+  }
+});
+
+app.get('/api/payments/transactions', authenticate, async (req, res) => {
+  try {
+    const payments = await prisma.payment.findMany({
+      where: { userId: req.user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    const userCredits = Math.max(0, (req.user.freeBuildsTotal ?? 3) - (req.user.freeBuildsUsed ?? 0));
+
+    const formattedTransactions = payments.map((p) => ({
+      id: p.id,
+      description: `Purchased ${p.planKey || 'Credits Package'}`,
+      amount: p.amount || 0,
+      balanceAfter: userCredits,
+      createdAt: p.createdAt,
+    }));
+
+    return res.json({ transactions: formattedTransactions });
+  } catch (err) {
+    console.error('Error fetching user transactions:', err);
+    return res.status(500).json({ error: 'Failed to load transaction records.' });
   }
 });
 
@@ -857,7 +961,7 @@ app.post('/api/admin/credits/user', authenticate, async (req, res) => {
 });
 
 // ============================================================
-// RAZORPAY PAYMENT ROUTES
+// RAZORPAY PAYMENT & DYNAMIC PACKAGES ROUTES
 // ============================================================
 
 const PACKAGES = {
@@ -870,38 +974,77 @@ app.get('/api/payments/packages', (req, res) => {
   return res.json({ packages: PACKAGES });
 });
 
-// ============================================================
-// GOOGLE AUTH
-// ============================================================
-
-app.post('/api/auth/google', async (req, res) => {
+app.post('/api/payments/create-order', authenticate, async (req, res) => {
   try {
-    const { access_token } = req.body;
-    if (!access_token) return res.status(400).json({ error: 'Access token is required' });
+    const { planKey } = req.body;
+    const plan = PACKAGES[planKey];
+    if (!plan) return res.status(400).json({ error: 'Invalid package plan.' });
 
-    const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: `Bearer ${access_token}` },
-    });
-
-    if (!googleRes.ok) return res.status(401).json({ error: 'Failed to verify Google user' });
-
-    const profile = await googleRes.json();
-    const { email, name, picture } = profile;
-
-    const user = {
-      id: email,
-      name: name || email.split('@')[0],
-      email: email,
-      credits: 3,
-      picture: picture || '',
+    const options = {
+      amount: plan.priceInInr * 100, // convert INR to paise
+      currency: 'INR',
+      receipt: `receipt_${Date.now()}`,
     };
 
-    return res.status(200).json({
-      token: 'google-session-token-' + Date.now(),
-      user,
+    const order = await razorpay.orders.create(options);
+    return res.json({
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      keyId: process.env.RAZORPAY_KEY_ID,
     });
   } catch (error) {
-    return res.status(500).json({ error: 'Google authentication failed' });
+    console.error('Order creation error:', error);
+    return res.status(500).json({ error: 'Failed to create payment order.' });
+  }
+});
+
+app.post('/api/payments/verify', authenticate, async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planKey } = req.body;
+    const plan = PACKAGES[planKey];
+
+    if (!plan) return res.status(400).json({ error: 'Invalid package selection.' });
+
+    const generatedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'rzp_secret_placeholder')
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest('hex');
+
+    if (generatedSignature !== razorpay_signature) {
+      return res.status(400).json({ error: 'Payment signature verification failed.' });
+    }
+
+    // Record payment ledger
+    await prisma.payment.create({
+      data: {
+        userId: req.user.id,
+        amount: plan.priceInInr,
+        currency: 'INR',
+        status: 'SUCCESS',
+        orderId: razorpay_order_id,
+        paymentId: razorpay_payment_id,
+      },
+    });
+
+    // Credit build builds to user
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        freeBuildsTotal: {
+          increment: plan.credits,
+        },
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Payment verified and credits added successfully!',
+      user: formatSafeUser(updatedUser),
+    });
+  } catch (error) {
+    console.error('Payment verification error:', error);
+    return res.status(500).json({ error: 'Payment verification failed.' });
   }
 });
 

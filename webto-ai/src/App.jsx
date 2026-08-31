@@ -1,5 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import Explore from './pages/Explore';
 
 // Layout & Navigation Components
@@ -22,6 +23,11 @@ import Credits from './pages/Credits';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+
+// Google Client ID (Reads from .env or fallback placeholder)
+const GOOGLE_CLIENT_ID =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
 
 function AppContent() {
   const location = useLocation();
@@ -72,10 +78,12 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <ThemeProvider>
-        <AppContent />
-      </ThemeProvider>
-    </AuthProvider>
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <AuthProvider>
+        <ThemeProvider>
+          <AppContent />
+        </ThemeProvider>
+      </AuthProvider>
+    </GoogleOAuthProvider>
   );
 }
