@@ -5,6 +5,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import { PrismaClient } from '@prisma/client';
 import { Octokit } from '@octokit/rest';
@@ -70,6 +71,15 @@ if (resend) {
 } else {
   console.warn('⚠️ RESEND_API_KEY not set. Emails will not be sent.');
 }
+
+// Nodemailer Transporter solely for Admin OTP delivery
+const adminTransporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.ADMIN_GMAIL_USER || 'webtoai26@gmail.com',
+    pass: process.env.ADMIN_GMAIL_PASS,
+  },
+});
 
 // In-memory OTP storage for Admin login
 let activeAdminOtp = null;
@@ -156,17 +166,15 @@ app.post('/api/admin/request-otp', async (req, res) => {
     activeAdminOtp = generatedOtp;
     adminOtpExpiresAt = Date.now() + 10 * 60 * 1000; // 10 mins
 
-    // Print OTP in terminal logs for instant access
+    // Print OTP in terminal logs for backup access
     console.log('------------------------------------');
     console.log(`>>> WEBTO ADMIN OTP: ${generatedOtp} <<<`);
     console.log('------------------------------------');
 
-    const fromEmail = process.env.RESEND_FROM_EMAIL || 'WEBTO AI <onboarding@resend.dev>';
-
-    if (resend) {
+    if (process.env.ADMIN_GMAIL_PASS) {
       try {
-        await resend.emails.send({
-          from: fromEmail,
+        await adminTransporter.sendMail({
+          from: `"WEBTO AI Security" <${process.env.ADMIN_GMAIL_USER || 'webtoai26@gmail.com'}>`,
           to: adminEmail,
           subject: 'WEBTO AI Admin Login Code',
           html: `
@@ -178,11 +186,13 @@ app.post('/api/admin/request-otp', async (req, res) => {
               </div>
               <p style="color: #94a3b8; font-size: 12px;">This code expires in 10 minutes. If you did not initiate this login, you can safely ignore this email.</p>
             </div>
-          `
+          `,
         });
       } catch (emailErr) {
-        console.error('Resend delivery error:', emailErr.message);
+        console.error('Nodemailer admin delivery error:', emailErr.message);
       }
+    } else {
+      console.warn('⚠️ ADMIN_GMAIL_PASS not set in environment. Check terminal logs for OTP.');
     }
 
     return res.json({ success: true, message: 'Security code sent to admin email.' });
@@ -630,7 +640,7 @@ app.post('/api/projects/:id/rollback/:versionId', authenticate, async (req, res)
   try {
     const { id, versionId } = req.params;
     const version = await prisma.projectVersion.findFirst({
-      where: { id: versionId, projectId: id },
+      where: { id, versionId, projectId: id },
     });
 
     if (!version) return res.status(404).json({ error: 'Version not found.' });
