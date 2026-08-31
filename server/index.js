@@ -156,26 +156,33 @@ app.post('/api/admin/request-otp', async (req, res) => {
     activeAdminOtp = generatedOtp;
     adminOtpExpiresAt = Date.now() + 10 * 60 * 1000; // 10 mins
 
+    // Print OTP in terminal logs for instant access
+    console.log('------------------------------------');
+    console.log(`>>> WEBTO ADMIN OTP: ${generatedOtp} <<<`);
+    console.log('------------------------------------');
+
     const fromEmail = process.env.RESEND_FROM_EMAIL || 'WEBTO AI <onboarding@resend.dev>';
 
     if (resend) {
-      await resend.emails.send({
-        from: fromEmail,
-        to: adminEmail,
-        subject: 'WEBTO AI Admin Login Code',
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 24px; background-color: #0f172a; color: #ffffff; border-radius: 12px; max-width: 450px; margin: 0 auto;">
-            <h2 style="color: #38bdf8; margin-top: 0;">WEBTO AI Admin Verification</h2>
-            <p style="color: #cbd5e1; font-size: 14px;">Use the following one-time security code to access the Admin Panel:</p>
-            <div style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #38bdf8; margin: 24px 0; text-align: center; background: #1e293b; padding: 14px; border-radius: 8px;">
-              ${generatedOtp}
+      try {
+        await resend.emails.send({
+          from: fromEmail,
+          to: adminEmail,
+          subject: 'WEBTO AI Admin Login Code',
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 24px; background-color: #0f172a; color: #ffffff; border-radius: 12px; max-width: 450px; margin: 0 auto;">
+              <h2 style="color: #38bdf8; margin-top: 0;">WEBTO AI Admin Verification</h2>
+              <p style="color: #cbd5e1; font-size: 14px;">Use the following one-time security code to access the Admin Panel:</p>
+              <div style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #38bdf8; margin: 24px 0; text-align: center; background: #1e293b; padding: 14px; border-radius: 8px;">
+                ${generatedOtp}
+              </div>
+              <p style="color: #94a3b8; font-size: 12px;">This code expires in 10 minutes. If you did not initiate this login, you can safely ignore this email.</p>
             </div>
-            <p style="color: #94a3b8; font-size: 12px;">This code expires in 10 minutes. If you did not initiate this login, you can safely ignore this email.</p>
-          </div>
-        `
-      });
-    } else {
-      console.log(`[DEV OTP]: Admin OTP code is ${generatedOtp}`);
+          `
+        });
+      } catch (emailErr) {
+        console.error('Resend delivery error:', emailErr.message);
+      }
     }
 
     return res.json({ success: true, message: 'Security code sent to admin email.' });
@@ -890,9 +897,9 @@ app.post('/api/auth/google', async (req, res) => {
 });
 
 // ============================================================
-// START SERVER
+// START SERVER (Render Compatible 0.0.0.0 Binding)
 // ============================================================
 
-app.listen(PORT, () => {
-  console.log(`WEBTO AI Backend running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`WEBTO AI Backend running on port ${PORT}`);
 });
