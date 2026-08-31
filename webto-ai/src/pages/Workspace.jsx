@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
+const API_BASE = 'https://webtoai-backend.onrender.com';
+
 export default function Workspace() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -115,7 +117,7 @@ export default function Workspace() {
   const loadProject = async () => {
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`https://webtoai-backend.onrender.com/api/projects/${id}`, {
+      const res = await fetch(`${API_BASE}/api/projects/${id}`, {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       const data = await res.json();
@@ -148,7 +150,7 @@ export default function Workspace() {
     try {
       const nextState = !isPublicProject;
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`https://webtoai-backend.onrender.com/api/projects/${id}/visibility`, {
+      const res = await fetch(`${API_BASE}/api/projects/${id}/visibility`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -173,7 +175,7 @@ export default function Workspace() {
     setSavingSeo(true);
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`https://webtoai-backend.onrender.com/api/projects/${id}/seo`, {
+      const res = await fetch(`${API_BASE}/api/projects/${id}/seo`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -260,7 +262,7 @@ export default function Workspace() {
 
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`https://webtoai-backend.onrender.com/api/chat/${id}`, {
+      const res = await fetch(`${API_BASE}/api/chat/${id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -296,7 +298,7 @@ export default function Workspace() {
     const authToken = token || localStorage.getItem('token');
     setGenerating(true);
     try {
-      const res = await fetch(`https://webtoai-backend.onrender.com/api/generate/${id}`, {
+      const res = await fetch(`${API_BASE}/api/generate/${id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -325,6 +327,16 @@ export default function Workspace() {
         setFiles(data.files);
         setSelectedFile(data.files[0]);
       }
+
+      // Sync remaining credits locally in AuthContext[cite: 3]
+      if (setUser && data.remainingCredits !== undefined) {
+        setUser((prev) => ({
+          ...prev,
+          credits: data.remainingCredits,
+          freeBuildsUsed: (prev?.freeBuildsUsed ?? 0) + 1
+        }));
+      }
+
       setPromptInput('');
       setSelectedElementInfo(null);
       setInspectorActive(false);
@@ -354,31 +366,6 @@ ${targetedPrompt}
     setTargetedPrompt('');
   };
 
-  const handleInstantRefill = async () => {
-    setRefilling(true);
-    try {
-      const authToken = token || localStorage.getItem('token');
-      const res = await fetch('https://webtoai-backend.onrender.com/api/credits/refill', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
-        body: JSON.stringify({ amount: 100 })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        if (setUser && data.user) setUser(data.user);
-        setShowUpgradeModal(false);
-        handleGenerate(promptInput || 'Build interactive modern interface');
-      }
-    } catch (err) {
-      console.error('Refill error:', err);
-    } finally {
-      setRefilling(false);
-    }
-  };
-
   const handleDeploy = async () => {
     if (!entryHtml) {
       alert('Generate code first before deploying!');
@@ -388,7 +375,7 @@ ${targetedPrompt}
     const authToken = token || localStorage.getItem('token');
     setDeploying(true);
     try {
-      const res = await fetch(`https://webtoai-backend.onrender.com/api/deploy/${id}`, {
+      const res = await fetch(`${API_BASE}/api/deploy/${id}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${authToken}` }
       });
@@ -450,7 +437,7 @@ ${targetedPrompt}
     try {
       localStorage.setItem('gh_token', githubTokenInput.trim());
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`https://webtoai-backend.onrender.com/api/github/push/${id}`, {
+      const res = await fetch(`${API_BASE}/api/github/push/${id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1133,47 +1120,16 @@ ${targetedPrompt}
 
             <h2 className="text-2xl font-bold text-white mb-2">Build Limit Reached</h2>
             <p className="text-slate-400 text-xs sm:text-sm max-w-sm mx-auto mb-6">
-              You've utilized all available generation credits on your current plan. Refill instantly to continue building with WEBTO AI autonomy.
+              You've utilized all available generation credits on your current plan. Top up your account to continue building with WEBTO AI autonomy.
             </p>
-
-            <div className="p-4 bg-slate-950/70 border border-blue-500/30 rounded-2xl mb-6 text-left flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                  Pro Access Refill
-                </span>
-                <h4 className="text-sm font-semibold text-white mt-1.5">+100 AI Generation Builds</h4>
-                <p className="text-[11px] text-slate-400">Full Gemini 3.6 architectural synthesis & live deployments</p>
-              </div>
-              <div className="text-right">
-                <span className="text-xl font-extrabold text-white">Free</span>
-                <span className="text-[10px] text-slate-500 block">Dev Mode</span>
-              </div>
-            </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
               <button
-                onClick={handleInstantRefill}
-                disabled={refilling}
-                className="flex-1 py-3 px-5 bg-gradient-to-r from-blue-600 to-indigo-500 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {refilling ? (
-                  <>
-                    <i className="fa-solid fa-spinner animate-spin"></i>
-                    Activating Builds...
-                  </>
-                ) : (
-                  <>
-                    <i className="fa-solid fa-bolt"></i>
-                    Refill +100 Builds Now
-                  </>
-                )}
-              </button>
-
-              <button
                 onClick={() => navigate('/credits')}
-                className="py-3 px-5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition"
+                className="w-full py-3 px-5 bg-gradient-to-r from-blue-600 to-indigo-500 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2"
               >
-                View Plans
+                <i className="fa-solid fa-bolt"></i>
+                View Plans & Upgrade
               </button>
             </div>
           </div>
