@@ -156,18 +156,15 @@ app.post('/api/admin/request-otp', async (req, res) => {
     activeAdminOtp = generatedOtp;
     adminOtpExpiresAt = Date.now() + 10 * 60 * 1000; // 10 mins
 
-    // Console log for instant access
     console.log('------------------------------------');
     console.log(`>>> WEBTO ADMIN OTP: ${generatedOtp} <<<`);
     console.log('------------------------------------');
 
-    const fromEmail = process.env.RESEND_FROM_EMAIL || 'WEBTO AI <onboarding@resend.dev>';
-
     if (resend) {
       try {
-        await resend.emails.send({
-          from: fromEmail,
-          to: adminEmail,
+        const sendResult = await resend.emails.send({
+          from: 'onboarding@resend.dev',
+          to: [adminEmail.trim().toLowerCase()],
           subject: 'WEBTO AI Admin Login Code',
           html: `
             <div style="font-family: Arial, sans-serif; padding: 24px; background-color: #0f172a; color: #ffffff; border-radius: 12px; max-width: 450px; margin: 0 auto;">
@@ -180,9 +177,12 @@ app.post('/api/admin/request-otp', async (req, res) => {
             </div>
           `,
         });
+        console.log('✅ Resend Dispatch Success:', JSON.stringify(sendResult));
       } catch (emailErr) {
-        console.error('Resend delivery error:', emailErr.message);
+        console.error('❌ Resend Dispatch Error:', emailErr);
       }
+    } else {
+      console.warn('⚠️ RESEND_API_KEY missing. OTP printed to terminal logs only.');
     }
 
     return res.json({ success: true, message: 'Security code sent to admin email.' });
@@ -397,7 +397,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     if (resend) {
       resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL || 'WEBTO AI <onboarding@resend.dev>',
+        from: 'onboarding@resend.dev',
         to: [cleanEmail],
         subject: 'Your WEBTO AI Temporary Access Code',
         text: `Your WEBTO AI temporary access code is: ${resetCode}. It expires in 15 minutes.`,
