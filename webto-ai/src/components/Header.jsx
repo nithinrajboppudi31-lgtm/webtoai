@@ -9,6 +9,11 @@ export default function Header() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
+  // Calculate live user builds balance
+  const totalBuilds = user?.freeBuildsTotal ?? 3;
+  const usedBuilds = user?.freeBuildsUsed ?? 0;
+  const creditsRemaining = user?.credits ?? Math.max(0, totalBuilds - usedBuilds);
+
   // Theme toggle state
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
 
@@ -54,7 +59,7 @@ export default function Header() {
             className="px-3 py-1 bg-blue-950/60 border border-blue-500/30 rounded-full text-blue-400 text-xs font-semibold flex items-center gap-1.5 cursor-pointer hover:bg-blue-900/40 transition"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>{user?.credits ?? 98} Free Builds Left</span>
+            <span>{creditsRemaining} Free Builds Left</span>
           </div>
 
           {/* Theme Toggle */}
@@ -87,7 +92,7 @@ export default function Header() {
                 onClick={() => setDropdownOpen(false)}
               >
                 <div className="px-4 py-2 border-b border-slate-800">
-                  <p className="font-semibold text-white truncate">{user?.name || 'Nithinraj'}</p>
+                  <p className="font-semibold text-white truncate">{user?.name || 'User'}</p>
                   <p className="text-[10px] text-slate-500 truncate">{user?.email || 'user@webto.ai'}</p>
                 </div>
 
