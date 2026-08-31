@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Sparkles, ArrowRight, Lock, Mail, User, AlertCircle, Gift, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useGoogleLogin } from '@react-oauth/google';
 
 export default function Signup() {
   const [name, setName] = useState('');
@@ -15,6 +16,39 @@ export default function Signup() {
 
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  const handleGoogleSuccess = async (tokenResponse) => {
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await fetch('https://webtoai-backend.onrender.com/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: tokenResponse.access_token }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Google authentication failed');
+      }
+
+      if (data.token && data.user) {
+        login(data.token, data.user);
+      }
+      navigate('/');
+    } catch (err) {
+      setError(err.message || 'Failed to authenticate with Google');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const googleLogin = useGoogleLogin({
+    onSuccess: handleGoogleSuccess,
+    onError: () => setError('Google Sign-In failed or was cancelled.'),
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -88,8 +122,9 @@ export default function Signup() {
         {/* Google Signup Button */}
         <button
           type="button"
-          onClick={() => alert('Official Google Sign-In connects automatically with your Client ID.')}
-          className="w-full py-2.5 px-4 bg-[#111a2e] border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-semibold text-slate-300 hover:text-white flex items-center justify-center gap-2.5 transition-all shadow-sm mb-5 cursor-pointer"
+          disabled={loading}
+          onClick={() => googleLogin()}
+          className="w-full py-2.5 px-4 bg-[#111a2e] border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-semibold text-slate-300 hover:text-white flex items-center justify-center gap-2.5 transition-all shadow-sm mb-5 cursor-pointer disabled:opacity-50"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
             <path

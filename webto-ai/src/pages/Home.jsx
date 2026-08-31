@@ -110,26 +110,26 @@ export default function Home() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 md:py-12 space-y-10">
+    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 md:py-12 space-y-6 sm:space-y-8 md:space-y-10">
       {/* Hero Section */}
-      <div className="text-center space-y-3.5 max-w-2xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-50 border border-brand-100 text-brand-700 text-xs font-semibold shadow-sm">
-          <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+      <div className="text-center space-y-3 sm:space-y-3.5 max-w-2xl mx-auto px-2">
+        <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 rounded-full bg-brand-50 border border-brand-100 text-brand-700 text-[11px] sm:text-xs font-semibold shadow-sm">
+          <Sparkles className="w-3.5 h-3.5 text-brand-600 shrink-0" />
           <span>Powered by Webto-Ai</span>
         </div>
 
         {/* Full solid blue text */}
-        <h1 className="text-3xl md:text-5xl font-black text-blue-500 tracking-tight leading-tight">
+        <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-blue-500 tracking-tight leading-tight sm:leading-tight md:leading-tight">
           Turn your ideas into production apps in seconds
         </h1>
 
-        <p className="text-xs md:text-sm text-gray-500 leading-relaxed">
+        <p className="text-xs sm:text-sm text-gray-500 leading-relaxed max-w-xl mx-auto">
           Describe what you want to build. WEBTO AI generates the code, architecture, and live preview automatically.
         </p>
       </div>
 
       {/* Main Prompt Generator Card */}
-      <div className="bg-white rounded-3xl p-5 md:p-7 shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 space-y-4">
+      <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-7 shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 space-y-4">
         <form onSubmit={handleStartBuilding} className="space-y-4">
           <div className="relative">
             <textarea
@@ -137,24 +137,24 @@ export default function Home() {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="e.g. Build an interactive fitness dashboard that tracks daily calories, workouts, water intake, and weekly progress charts..."
-              className="w-full text-xs md:text-sm p-4 bg-gray-50/80 border border-gray-200 rounded-2xl focus:bg-white focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all resize-none text-gray-800 placeholder:text-gray-400"
+              className="w-full text-xs sm:text-sm p-3.5 sm:p-4 bg-gray-50/80 border border-gray-200 rounded-xl sm:rounded-2xl focus:bg-white focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all resize-none text-gray-800 placeholder:text-gray-400"
             />
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 text-xs font-medium text-rose-600 bg-rose-50 border border-rose-100 px-4 py-3 rounded-xl">
+            <div className="flex items-center gap-2 text-xs font-medium text-rose-600 bg-rose-50 border border-rose-100 px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-xl">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-1">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pt-1">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="text-xs text-gray-500 font-medium">Type:</span>
               <select
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value)}
-                className="text-xs font-semibold bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-700 focus:outline-none focus:border-brand-500"
+                className="text-xs font-semibold bg-gray-50 border border-gray-200 rounded-xl px-2.5 sm:px-3 py-1.5 sm:py-2 text-gray-700 focus:outline-none focus:border-brand-500"
               >
                 <option value="FULL_STACK">Full-Stack Application</option>
                 <option value="WEB_APP">Web App</option>
@@ -165,7 +165,7 @@ export default function Home() {
 
               <span className="text-xs text-gray-400 hidden sm:inline">|</span>
 
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-400 w-full sm:w-auto mt-1 sm:mt-0">
                 Free Builds: <strong className="text-gray-800">{(user?.freeBuildsTotal || 3) - (user?.freeBuildsUsed || 0)}</strong>
               </span>
             </div>
@@ -173,7 +173,7 @@ export default function Home() {
             <button
               type="submit"
               disabled={loading || !prompt.trim()}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:opacity-95 text-white text-xs font-bold shadow-md shadow-brand-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:opacity-95 text-white text-xs font-bold shadow-md shadow-brand-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99] sm:active:scale-95"
             >
               <span>{loading ? 'Initializing Project...' : 'Start Building'}</span>
               <ArrowRight className="w-4 h-4" />
@@ -183,41 +183,41 @@ export default function Home() {
       </div>
 
       {/* Starter Templates */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="space-y-3 sm:space-y-4">
+        <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1">
           <h2 className="text-xs font-bold uppercase tracking-wider text-gray-400">
             Suggested Starters
           </h2>
-          <span className="text-[11px] text-gray-400">Click any card to load prompt</span>
+          <span className="text-[10px] sm:text-[11px] text-gray-400">Click any card to load prompt</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {promptTemplates.map((tpl) => {
             const Icon = tpl.icon;
             return (
               <div
                 key={tpl.title}
                 onClick={() => selectTemplate(tpl)}
-                className="text-left p-4 rounded-2xl bg-white border border-gray-100 shadow-sm hover:border-brand-300 hover:shadow-md transition-all group cursor-pointer flex flex-col justify-between"
+                className="text-left p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-gray-100 shadow-sm hover:border-brand-300 hover:shadow-md transition-all group cursor-pointer flex flex-col justify-between"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="w-8 h-8 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Icon className="w-4 h-4" />
+                  <div className="flex items-center justify-between mb-2.5 sm:mb-3">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
+                    <span className="text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
                       {tpl.badge}
                     </span>
                   </div>
                   <h3 className="text-xs font-bold text-gray-900 group-hover:text-brand-600 transition-colors">
                     {tpl.title}
                   </h3>
-                  <p className="text-[11px] text-gray-400 mt-1 line-clamp-2">
+                  <p className="text-[11px] text-gray-400 mt-1 line-clamp-2 leading-relaxed">
                     {tpl.prompt}
                   </p>
                 </div>
 
-                <div className="pt-3 mt-3 border-t border-gray-50 flex items-center justify-between text-[11px] font-semibold text-brand-600">
+                <div className="pt-2.5 sm:pt-3 mt-2.5 sm:mt-3 border-t border-gray-50 flex items-center justify-between text-[11px] font-semibold text-brand-600">
                   <span>Use Template</span>
                   <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                 </div>

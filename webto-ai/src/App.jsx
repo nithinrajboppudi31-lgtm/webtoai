@@ -45,10 +45,10 @@ function AppContent() {
       <Sidebar />
 
       {/* Main Workspace Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#070b14]">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#070b14]">
         <Header />
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/workspace" element={<Workspace />} />

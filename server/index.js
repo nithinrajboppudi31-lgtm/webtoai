@@ -3311,6 +3311,48 @@ app.patch(
   }
 );
 
+
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { access_token } = req.body;
+
+    if (!access_token) {
+      return res.status(400).json({ error: 'Access token is required' });
+    }
+
+    // 1. Get user profile from Google
+    const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+
+    if (!googleRes.ok) {
+      return res.status(401).json({ error: 'Failed to verify Google user' });
+    }
+
+    const profile = await googleRes.json();
+    const { email, name, picture } = profile;
+
+    // 2. Adjust with your actual DB lookup or registration logic
+    // (If you want to match your existing register/login handler, adapt the user object below)
+    const user = {
+      id: email,
+      name: name || email.split('@')[0],
+      email: email,
+      credits: 3,
+      picture: picture || ''
+    };
+
+    // Return the response expected by AuthContext
+    return res.status(200).json({
+      token: 'google-session-token-' + Date.now(), // or your jwt.sign(...)
+      user
+    });
+  } catch (error) {
+    console.error('Google auth error:', error);
+    return res.status(500).json({ error: 'Google authentication failed' });
+  }
+});
+
 // ============================================================
 // START SERVER
 // ============================================================
