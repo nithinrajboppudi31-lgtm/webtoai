@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Coins, Check, Zap, History, ShieldCheck, AlertCircle, Loader2 } from 'lucide-react';
 
+const API_BASE = 'https://webtoai-backend.onrender.com';
+
 export default function Credits() {
   const { user, token, setUser } = useAuth();
   const [loadingPlan, setLoadingPlan] = useState(null);
@@ -9,47 +11,55 @@ export default function Credits() {
   const [errorMsg, setErrorMsg] = useState('');
   const [transactions, setTransactions] = useState([]);
   const [loadingTx, setLoadingTx] = useState(false);
+  const [plans, setPlans] = useState([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
 
+  // Calculate live user balance
   const buildsUsed = user?.freeBuildsUsed ?? 0;
   const buildsTotal = user?.freeBuildsTotal ?? 3;
-  const buildsLeft = Math.max(0, buildsTotal - buildsUsed);
-  const usagePercentage = Math.min(100, Math.round((buildsUsed / buildsTotal) * 100));
-
-  const plans = [
-    {
-      key: 'starter',
-      name: 'Starter',
-      price: '₹99',
-      credits: '100 Builds',
-      rawCredits: 100,
-      features: ['100 AI Generations', 'Live Preview Sandbox', 'ZIP Source Export', 'Community Support'],
-      popular: false,
-    },
-    {
-      key: 'builder',
-      name: 'Builder',
-      price: '₹399',
-      credits: '500 Builds',
-      rawCredits: 500,
-      features: ['500 AI Generations', 'Full-Stack Deployments', 'AI Discovery Architect', 'Snapshot History Rollback'],
-      popular: true,
-    },
-    {
-      key: 'pro',
-      name: 'Pro',
-      price: '₹999',
-      credits: '1,500 Builds',
-      rawCredits: 1500,
-      features: ['1,500 AI Generations', 'Unlimited Deployments', 'Priority Gemini 3.6 Speed', 'Dedicated 24/7 Support'],
-      popular: false,
-    },
-  ];
+  const buildsLeft = Math.max(0, buildsTotal - buildsUsed) + (user?.credits || 0);
+  const usagePercentage = Math.min(100, Math.round((buildsUsed / Math.max(1, buildsTotal)) * 100));
 
   useEffect(() => {
+    loadLivePackages();
     loadTransactions();
     loadRazorpayScript();
   }, []);
 
+  // 1. Fetch live packages dynamically controlled by Admin Dashboard
+  const loadLivePackages = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/payments/packages`);
+      const data = await res.json();
+      if (res.ok && data.packages) {
+        if (Array.isArray(data.packages)) {
+          setPlans(data.packages);
+        } else {
+          // Format object to array fallback
+          const list = Object.entries(data.packages).map(([k, v]) => ({
+            id: k,
+            name: v.name,
+            priceInInr: v.priceInInr,
+            credits: v.credits,
+            popular: k === 'builder',
+            features: [
+              `${v.credits} AI Generations`,
+              'Full-Stack Deployments',
+              'AI Discovery Architect',
+              'Snapshot History Rollback'
+            ]
+          }));
+          setPlans(list);
+        }
+      }
+    } catch (err) {
+      console.error('Fetch packages error:', err);
+    } finally {
+      setLoadingPlans(false);
+    }
+  };
+
+  // 2. Load Razorpay script
   const loadRazorpayScript = () => {
     if (document.getElementById('razorpay-checkout-js')) return;
     const script = document.createElement('script');
@@ -59,11 +69,12 @@ export default function Credits() {
     document.body.appendChild(script);
   };
 
+  // 3. Fetch user transactions ledger
   const loadTransactions = async () => {
     setLoadingTx(true);
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch('https://webtoai-backend.onrender.com/api/payments/transactions', {
+      const res = await fetch(`${API_BASE}/api/payments/transactions`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       const data = await res.json();
@@ -77,34 +88,35 @@ export default function Credits() {
     }
   };
 
+  // 4. Initiate Razorpay Checkout for the chosen dynamic plan
   const handlePurchasePlan = async (plan) => {
-    setLoadingPlan(plan.key);
+    const planKey = plan.key || plan.id || 'starter';
+    setLoadingPlan(planKey);
     setErrorMsg('');
     setSuccessMsg('');
 
     try {
       const authToken = token || localStorage.getItem('token');
 
-      // 1. Create order on backend
-      const res = await fetch('https://webtoai-backend.onrender.com/api/payments/create-order', {
+      // Create order on backend
+      const res = await fetch(`${API_BASE}/api/payments/create-order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
         },
-        body: JSON.stringify({ planKey: plan.key }),
+        body: JSON.stringify({ planKey }),
       });
 
       const orderData = await res.json();
       if (!res.ok) throw new Error(orderData.error || 'Could not initiate checkout.');
 
-      // 2. Open Razorpay Checkout Modal
       const options = {
         key: orderData.keyId,
         amount: orderData.amount,
         currency: orderData.currency,
         name: 'WEBTO AI',
-        description: `Upgrade: ${plan.name} (${plan.credits})`,
+        description: `Upgrade: ${plan.name} (${plan.credits} Builds)`,
         order_id: orderData.orderId,
         modal: {
           ondismiss: function () {
@@ -113,8 +125,7 @@ export default function Credits() {
         },
         handler: async function (response) {
           try {
-            // 3. Verify payment signature on backend
-            const verifyRes = await fetch('https://webtoai-backend.onrender.com/api/payments/verify', {
+            const verifyRes = await fetch(`${API_BASE}/api/payments/verify`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -124,7 +135,7 @@ export default function Credits() {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                planKey: plan.key,
+                planKey,
               }),
             });
 
@@ -135,7 +146,7 @@ export default function Credits() {
               setUser(verifyData.user);
             }
 
-            setSuccessMsg(`Success! ${plan.credits} added to your account.`);
+            setSuccessMsg(`Success! ${plan.credits} builds added to your account.`);
             loadTransactions();
           } catch (verErr) {
             setErrorMsg(`Verification Error: ${verErr.message}`);
@@ -187,7 +198,7 @@ export default function Credits() {
         </div>
       )}
 
-      {/* Balance Summary Card */}
+      {/* Available Quota Card */}
       <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
@@ -218,61 +229,76 @@ export default function Credits() {
         </div>
       </div>
 
-      {/* Packages Grid */}
+      {/* Dynamic Packages Grid from Database */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {plans.map((p) => (
-          <div
-            key={p.key}
-            className={`p-6 rounded-3xl flex flex-col justify-between relative transition ${
-              p.popular
-                ? 'bg-slate-900 border-2 border-blue-500 shadow-2xl shadow-blue-500/10'
-                : 'bg-slate-900/40 border border-slate-800'
-            }`}
-          >
-            {p.popular && (
-              <span className="absolute -top-3 right-5 px-3 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-extrabold uppercase tracking-wider">
-                Most Popular
-              </span>
-            )}
-            <div>
-              <h3 className="text-base font-bold text-white">{p.name}</h3>
-              <div className="mt-3 flex items-baseline gap-1">
-                <span className="text-3xl font-black text-white">{p.price}</span>
-                <span className="text-xs text-slate-400">/ {p.credits}</span>
-              </div>
-              <ul className="mt-6 space-y-2.5">
-                {p.features.map((f, i) => (
-                  <li key={i} className="flex items-center gap-2 text-xs text-slate-300">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <button
-              onClick={() => handlePurchasePlan(p)}
-              disabled={loadingPlan === p.key}
-              className={`mt-8 w-full py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 disabled:opacity-50 ${
-                p.popular
-                  ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/25'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-              }`}
-            >
-              {loadingPlan === p.key ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Opening Checkout...</span>
-                </>
-              ) : (
-                <>
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>Buy {p.name}</span>
-                </>
-              )}
-            </button>
+        {loadingPlans ? (
+          <div className="col-span-3 text-center py-12 text-slate-500 text-xs flex items-center justify-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+            <span>Loading live pricing packages...</span>
           </div>
-        ))}
+        ) : (
+          plans.map((p) => {
+            const planKey = p.key || p.id;
+            return (
+              <div
+                key={planKey}
+                className={`p-6 rounded-3xl flex flex-col justify-between relative transition ${
+                  p.popular
+                    ? 'bg-slate-900 border-2 border-blue-500 shadow-2xl shadow-blue-500/10'
+                    : 'bg-slate-900/40 border border-slate-800'
+                }`}
+              >
+                {p.popular && (
+                  <span className="absolute -top-3 right-5 px-3 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-extrabold uppercase tracking-wider">
+                    Most Popular
+                  </span>
+                )}
+                <div>
+                  <h3 className="text-base font-bold text-white">{p.name}</h3>
+                  <div className="mt-3 flex items-baseline gap-1">
+                    <span className="text-3xl font-black text-white">{p.price || `₹${p.priceInInr}`}</span>
+                    <span className="text-xs text-slate-400">/ {p.credits} Builds</span>
+                  </div>
+                  <ul className="mt-6 space-y-2.5">
+                    {(p.features || [
+                      `${p.credits} AI Generations`,
+                      'Full-Stack Deployments',
+                      'Live Preview Sandbox',
+                      'ZIP Source Export'
+                    ]).map((f, i) => (
+                      <li key={i} className="flex items-center gap-2 text-xs text-slate-300">
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <button
+                  onClick={() => handlePurchasePlan(p)}
+                  disabled={loadingPlan === planKey}
+                  className={`mt-8 w-full py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 disabled:opacity-50 ${
+                    p.popular
+                      ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/25'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                  }`}
+                >
+                  {loadingPlan === planKey ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Opening Checkout...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Buy {p.name}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Transaction History Ledger */}
