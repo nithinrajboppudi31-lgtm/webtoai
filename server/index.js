@@ -1,4 +1,4 @@
-import Razorpay from 'razorpay';
+  import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import express from 'express';
 import cors from 'cors';
@@ -50,7 +50,9 @@ app.use(
   })
 );
 
-app.use(express.json());
+// Expanded body payload parsing for high-res photo uploads
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ limit: '25mb', extended: true }));
 
 // Health Check Endpoint
 app.get('/health', (req, res) => {
@@ -709,7 +711,7 @@ app.patch('/api/projects/:id/seo', authenticate, async (req, res) => {
 });
 
 // ============================================================
-// AI CHAT & GENERATION
+// AI CHAT & GENERATION (Multimodal Image Support)
 // ============================================================
 
 app.post('/api/chat/:id', authenticate, async (req, res) => {
@@ -731,9 +733,9 @@ app.post('/api/chat/:id', authenticate, async (req, res) => {
 app.post('/api/generate/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const { prompt } = req.body;
+    const { prompt, image } = req.body;
 
-    if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
+    if (!prompt && !image) return res.status(400).json({ error: 'Prompt or image is required.' });
 
     const project = await prisma.project.findFirst({
       where: { id, userId: req.user.id },
@@ -752,7 +754,13 @@ app.post('/api/generate/:id', authenticate, async (req, res) => {
     const existingIndex = project.files?.find((f) => f.name === 'index.html');
     const existingCode = existingIndex?.content || project.entryHtml || '';
 
-    const generatedData = await generateProjectCode(prompt, project.type, existingCode);
+    // Pass image into generateProjectCode
+    const generatedData = await generateProjectCode(
+      prompt || 'Recreate and build modern responsive web UI matching this design photo',
+      project.type,
+      existingCode,
+      image
+    );
 
     if (!generatedData || !generatedData.entryHtml) {
       return res.status(500).json({ error: 'Invalid response from AI engine.' });
@@ -784,7 +792,7 @@ app.post('/api/generate/:id', authenticate, async (req, res) => {
     await prisma.projectVersion.create({
       data: {
         projectId: id,
-        prompt: prompt.slice(0, 500),
+        prompt: (prompt || 'UI Generated from Photo').slice(0, 500),
         entryHtml: generatedData.entryHtml,
       },
     });
