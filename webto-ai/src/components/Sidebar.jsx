@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   Home, 
@@ -9,7 +9,9 @@ import {
   Rocket, 
   Coins, 
   Settings, 
-  Sparkles 
+  Sparkles,
+  Menu,
+  X
 } from 'lucide-react';
 
 const navItems = [
@@ -24,15 +26,29 @@ const navItems = [
 ];
 
 export default function Sidebar() {
-  return (
-    <aside className="hidden md:flex flex-col justify-between w-64 flex-shrink-0 bg-[#0F1117] text-gray-300 border-r border-gray-800 select-none h-full">
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const closeMobileMenu = () => setMobileOpen(false);
+
+  const navContent = (
+    <div className="flex flex-col justify-between h-full">
       <div>
         {/* Brand Logo */}
-        <div className="h-16 px-6 flex items-center gap-2.5 border-b border-gray-800">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
-            <Sparkles className="w-4 h-4" />
+        <div className="h-16 px-6 flex items-center justify-between border-b border-gray-800">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <span className="font-extrabold text-white text-base tracking-tight">WEBTO AI</span>
           </div>
-          <span className="font-extrabold text-white text-base tracking-tight">WEBTO AI</span>
+          {/* Close button for mobile drawer */}
+          <button
+            type="button"
+            onClick={closeMobileMenu}
+            className="md:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Navigation Links */}
@@ -43,10 +59,11 @@ export default function Sidebar() {
               <NavLink
                 key={item.path}
                 to={item.path}
+                onClick={closeMobileMenu}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
                     isActive
-                      ? 'bg-brand-600 text-white font-semibold shadow-md shadow-brand-500/20'
+                      ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-500/20'
                       : 'text-gray-400 hover:text-gray-100 hover:bg-[#181B26]'
                   }`
                 }
@@ -66,12 +83,56 @@ export default function Sidebar() {
           <p className="text-[10px] text-gray-400 mt-1">Upgrade to Pro for full AI autonomy.</p>
           <NavLink
             to="/credits"
-            className="mt-3 block w-full py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-[11px] font-semibold rounded-lg transition-colors shadow-sm"
+            onClick={closeMobileMenu}
+            className="mt-3 block w-full py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-semibold rounded-lg transition-colors shadow-sm"
           >
             Upgrade Plan
           </NavLink>
         </div>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Mobile Top Navigation Header */}
+      <div className="md:hidden flex items-center justify-between px-4 py-3 bg-[#0F1117] border-b border-gray-800 sticky top-0 z-30 w-full select-none">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md">
+            <Sparkles className="w-3.5 h-3.5" />
+          </div>
+          <span className="font-bold text-white text-sm tracking-tight">WEBTO AI</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          className="p-2 rounded-xl text-gray-300 hover:text-white hover:bg-gray-800/80 border border-gray-800 transition"
+          aria-label="Toggle navigation menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Mobile Slide-Over Drawer Overlay */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
+            onClick={closeMobileMenu}
+          />
+
+          {/* Slide-Over Drawer */}
+          <div className="relative w-64 max-w-[80vw] bg-[#0F1117] text-gray-300 border-r border-gray-800 shadow-2xl z-10 flex flex-col h-full animate-in slide-in-from-left duration-200">
+            {navContent}
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Persistent Sidebar */}
+      <aside className="hidden md:flex flex-col w-64 flex-shrink-0 bg-[#0F1117] text-gray-300 border-r border-gray-800 select-none h-full">
+        {navContent}
+      </aside>
+    </>
   );
 }
