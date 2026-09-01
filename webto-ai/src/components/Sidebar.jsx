@@ -30,10 +30,10 @@ export default function Sidebar() {
 
   const closeMobileMenu = () => setMobileOpen(false);
 
-  const navContent = (
-    <div className="flex flex-col justify-between h-full">
+  const renderNavContent = () => (
+    <div className="flex flex-col justify-between h-full bg-[#0F1117]">
       <div>
-        {/* Brand Logo */}
+        {/* Brand Header */}
         <div className="h-16 px-6 flex items-center justify-between border-b border-gray-800">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
@@ -41,7 +41,6 @@ export default function Sidebar() {
             </div>
             <span className="font-extrabold text-white text-base tracking-tight">WEBTO AI</span>
           </div>
-          {/* Close button for mobile drawer */}
           <button
             type="button"
             onClick={closeMobileMenu}
@@ -95,8 +94,8 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile Top Navigation Header */}
-      <div className="md:hidden flex items-center justify-between px-4 py-3 bg-[#0F1117] border-b border-gray-800 sticky top-0 z-30 w-full select-none">
+      {/* Mobile Top App Bar */}
+      <header className="md:hidden flex items-center justify-between px-4 h-14 bg-[#0F1117] border-b border-gray-800 w-full shrink-0 z-30">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md">
             <Sparkles className="w-3.5 h-3.5" />
@@ -106,32 +105,29 @@ export default function Sidebar() {
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="p-2 rounded-xl text-gray-300 hover:text-white hover:bg-gray-800/80 border border-gray-800 transition"
-          aria-label="Toggle navigation menu"
+          className="p-2 rounded-lg text-gray-300 hover:text-white hover:bg-gray-800 border border-gray-800 transition"
+          aria-label="Open navigation menu"
         >
           <Menu className="w-5 h-5" />
         </button>
-      </div>
+      </header>
 
-      {/* Mobile Slide-Over Drawer Overlay */}
+      {/* Mobile Modal Drawer */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
-          {/* Backdrop */}
+        <div className="fixed inset-0 z-50 md:hidden">
           <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
             onClick={closeMobileMenu}
           />
-
-          {/* Slide-Over Drawer */}
-          <div className="relative w-64 max-w-[80vw] bg-[#0F1117] text-gray-300 border-r border-gray-800 shadow-2xl z-10 flex flex-col h-full animate-in slide-in-from-left duration-200">
-            {navContent}
+          <div className="fixed inset-y-0 left-0 w-64 max-w-[80vw] z-50 border-r border-gray-800 shadow-2xl">
+            {renderNavContent()}
           </div>
         </div>
       )}
 
       {/* Desktop Persistent Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 flex-shrink-0 bg-[#0F1117] text-gray-300 border-r border-gray-800 select-none h-full">
-        {navContent}
+      <aside className="hidden md:flex flex-col w-64 shrink-0 bg-[#0F1117] text-gray-300 border-r border-gray-800 select-none h-full">
+        {renderNavContent()}
       </aside>
     </>
   );
