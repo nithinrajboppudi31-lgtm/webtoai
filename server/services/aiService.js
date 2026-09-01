@@ -44,7 +44,7 @@ CRITICAL ARCHITECTURE RULES:
 4. Return valid, parseable JSON conforming strictly to the requested schema.
 `;
 
-export async function generateProjectCode(prompt, projectType = 'FULL_STACK', existingCode = '') {
+export async function generateProjectCode(prompt, projectType = 'FULL_STACK', existingCode = '', image = null) {
   try {
     console.log('[AI SERVICE] Synthesizing full-stack project code with gemini-3.6-flash...');
 
@@ -53,12 +53,37 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
       fullPrompt += `\n\nExisting Application Code to update/enhance:\n${existingCode.slice(0, 15000)}`;
     }
 
+    const parts = [{ text: fullPrompt }];
+
+    // If an image (design mockup / wireframe / screenshot) is attached
+    if (image) {
+      let mimeType = 'image/png';
+      let base64Data = image;
+
+      if (image.startsWith('data:')) {
+        const matches = image.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+        if (matches && matches.length === 3) {
+          mimeType = matches[1];
+          base64Data = matches[2];
+        } else {
+          base64Data = image.split(',')[1] || image;
+        }
+      }
+
+      parts.unshift({
+        inlineData: {
+          mimeType: mimeType,
+          data: base64Data
+        }
+      });
+    }
+
     const response = await ai.models.generateContent({
       model: 'gemini-3.6-flash',
       contents: [
         {
           role: 'user',
-          parts: [{ text: fullPrompt }]
+          parts: parts
         }
       ],
       config: {
