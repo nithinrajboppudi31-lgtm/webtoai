@@ -23,6 +23,11 @@ export default function Workspace() {
   const [deploying, setDeploying] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Photo / Mockup Upload State
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
+
   // Phase 12: Device Viewport & Inspector State
   const [deviceViewport, setDeviceViewport] = useState('desktop');
   const [inspectorActive, setInspectorActive] = useState(false);
@@ -146,6 +151,31 @@ export default function Workspace() {
       }
     } catch (err) {
       console.error('Error loading project:', err);
+    }
+  };
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload a valid image file (PNG, JPG, WEBP, etc.)');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImagePreview(reader.result);
+      setSelectedImage(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -310,7 +340,8 @@ export default function Workspace() {
 
   const handleGenerate = async (promptToUse) => {
     const text = promptToUse || promptInput;
-    if (!text || !text.trim() || generating) return;
+    if ((!text || !text.trim()) && !selectedImage) return;
+    if (generating) return;
 
     const authToken = token || localStorage.getItem('token');
     setGenerating(true);
@@ -321,7 +352,10 @@ export default function Workspace() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`
         },
-        body: JSON.stringify({ prompt: text.trim() })
+        body: JSON.stringify({
+          prompt: (text || 'Generate matching design based on attached image').trim(),
+          image: selectedImage || null
+        })
       });
 
       const contentType = res.headers.get('content-type');
@@ -358,6 +392,7 @@ export default function Workspace() {
       }
 
       setPromptInput('');
+      handleRemoveImage();
       setSelectedElementInfo(null);
       setInspectorActive(false);
     } catch (err) {
@@ -767,7 +802,7 @@ ${targetedPrompt}
               <h3 className="text-base font-semibold text-white">Synthesizing Updates with WEBTO AI</h3>
               <p className="text-xs text-slate-400">
                 {generateProgress < 35
-                  ? 'Analyzing prompt requirements...'
+                  ? 'Analyzing prompt requirements & visual inputs...'
                   : generateProgress < 70
                   ? 'Compiling responsive layouts & modules...'
                   : generateProgress < 95
@@ -1296,19 +1331,59 @@ ${targetedPrompt}
         </div>
       )}
 
-      {/* Bottom Prompt Bar with Speech-to-Text */}
-      <div className="p-4 bg-slate-950 border-t border-slate-800">
+      {/* Bottom Prompt Bar with Image Mockup Upload & Speech-to-Text */}
+      <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col items-center">
+        {/* Photo Preview Thumbnail */}
+        {imagePreview && (
+          <div className="mb-2.5 flex items-center gap-2.5 bg-slate-900 border border-blue-500/40 px-3 py-1.5 rounded-2xl max-w-4xl w-full">
+            <div className="w-9 h-9 rounded-lg overflow-hidden border border-slate-700 shrink-0 bg-black">
+              <img src={imagePreview} alt="Design Mockup" className="w-full h-full object-cover" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-semibold text-blue-400 truncate">Design Mockup / Screenshot Attached</p>
+              <p className="text-[10px] text-slate-400">AI will inspect and recreate this visual interface</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRemoveImage}
+              className="p-1 text-slate-400 hover:text-red-400 transition rounded-lg hover:bg-slate-800"
+              title="Remove Attached Image"
+            >
+              <i className="fa-solid fa-xmark text-xs"></i>
+            </button>
+          </div>
+        )}
+
+        {/* Hidden File Input */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleImageSelect}
+          accept="image/*"
+          className="hidden"
+        />
+
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleGenerate();
           }}
-          className="relative flex items-center max-w-4xl mx-auto"
+          className="relative flex items-center max-w-4xl w-full mx-auto"
         >
-          <i className="fa-solid fa-wand-magic-sparkles absolute left-4 text-blue-400 text-sm"></i>
+          {/* Attach Image Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={generating}
+            className="absolute left-3 p-1.5 rounded-lg text-slate-400 hover:text-blue-400 transition hover:bg-slate-800 disabled:opacity-40"
+            title="Upload Design Image / Screenshot"
+          >
+            <i className="fa-solid fa-image text-sm"></i>
+          </button>
+
           <input
             type="text"
-            placeholder="Direct quick prompt, voice instruction, or enhancement..."
+            placeholder={imagePreview ? "Add instructions for this design image (optional)..." : "Direct quick prompt, voice instruction, or enhancement..."}
             value={promptInput}
             onChange={(e) => setPromptInput(e.target.value)}
             disabled={generating}
@@ -1332,7 +1407,7 @@ ${targetedPrompt}
 
             <button
               type="submit"
-              disabled={generating || !promptInput.trim()}
+              disabled={generating || (!promptInput.trim() && !selectedImage)}
               className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-full transition disabled:opacity-40 shadow flex items-center gap-2"
             >
               {generating ? (
