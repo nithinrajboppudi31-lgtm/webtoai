@@ -15,6 +15,9 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  // Dynamic transparency calculation based on user typing
+  const isTyping = email.length > 0 || password.length > 0;
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
@@ -53,7 +56,6 @@ export default function Login() {
 
     try {
       if (provider === 'google') {
-        // Direct OAuth authentication or redirect
         const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
         if (googleClientId) {
           const redirectUri = `${window.location.origin}/login`;
@@ -70,7 +72,6 @@ export default function Login() {
         }
       }
 
-      // Fallback direct backend exchange
       const userPromptEmail = prompt(`Enter your ${provider === 'google' ? 'Google' : 'GitHub'} email to continue:`);
       if (!userPromptEmail) {
         setOauthLoading(false);
@@ -102,8 +103,18 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#070b14] bg-radial-gradient flex flex-col justify-center items-center p-4 font-sans text-slate-100">
-      <div className="w-full max-w-[420px] bg-[#0c1222]/60 border border-slate-800/80 rounded-3xl p-8 shadow-2xl backdrop-blur-xl relative overflow-hidden">
+    <div className="min-h-screen bg-[#070b14] bg-radial-gradient flex flex-col justify-center items-center p-4 font-sans text-slate-100 relative overflow-hidden">
+      {/* Background Ambient Glows for enhanced glass transparency reflection */}
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+      {/* Main Container - Transitions to deep transparent glass when typing */}
+      <div 
+        className={`w-full max-w-[420px] border rounded-3xl p-8 shadow-2xl relative overflow-hidden transition-all duration-500 ease-out ${
+          isTyping
+            ? 'bg-[#0c1222]/25 border-blue-500/30 backdrop-blur-2xl shadow-blue-950/20'
+            : 'bg-[#0c1222]/60 border-slate-800/80 backdrop-blur-xl'
+        }`}
+      >
         {/* Top Accent Line */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent"></div>
 
@@ -122,7 +133,11 @@ export default function Login() {
             type="button"
             disabled={oauthLoading}
             onClick={() => handleOAuthLogin('google')}
-            className="flex items-center justify-center gap-2 py-2.5 px-3 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-700/60 rounded-xl text-xs font-semibold text-white transition active:scale-[0.98] cursor-pointer"
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 border rounded-xl text-xs font-semibold text-white transition-all duration-300 active:scale-[0.98] cursor-pointer ${
+              isTyping 
+                ? 'bg-slate-900/30 hover:bg-slate-800/50 border-slate-700/40 backdrop-blur-sm' 
+                : 'bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60'
+            }`}
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path
@@ -149,7 +164,11 @@ export default function Login() {
             type="button"
             disabled={oauthLoading}
             onClick={() => handleOAuthLogin('github')}
-            className="flex items-center justify-center gap-2 py-2.5 px-3 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-700/60 rounded-xl text-xs font-semibold text-white transition active:scale-[0.98] cursor-pointer"
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 border rounded-xl text-xs font-semibold text-white transition-all duration-300 active:scale-[0.98] cursor-pointer ${
+              isTyping 
+                ? 'bg-slate-900/30 hover:bg-slate-800/50 border-slate-700/40 backdrop-blur-sm' 
+                : 'bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60'
+            }`}
           >
             <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
               <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
@@ -160,8 +179,10 @@ export default function Login() {
 
         {/* Divider */}
         <div className="relative flex items-center justify-center mb-5">
-          <div className="border-t border-slate-800 w-full"></div>
-          <span className="bg-[#0c1222] px-3 text-[10px] uppercase tracking-wider text-slate-500 absolute font-semibold">
+          <div className="border-t border-slate-800/80 w-full"></div>
+          <span className={`px-3 text-[10px] uppercase tracking-wider text-slate-500 absolute font-semibold transition-colors duration-300 ${
+            isTyping ? 'bg-[#0c1222]/30 backdrop-blur-sm' : 'bg-[#0c1222]'
+          }`}>
             Or continue with email
           </span>
         </div>
@@ -195,7 +216,11 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@example.com"
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-800/90 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                className={`w-full pl-10 pr-4 py-2.5 border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none transition-all duration-300 ${
+                  email.length > 0
+                    ? 'bg-slate-950/20 border-blue-500/40 backdrop-blur-md focus:border-blue-400'
+                    : 'bg-slate-950/60 border-slate-800/90 focus:border-blue-500'
+                }`}
               />
             </div>
           </div>
@@ -222,7 +247,11 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
-                className="w-full pl-10 pr-10 py-2.5 bg-slate-950/60 border border-slate-800/90 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                className={`w-full pl-10 pr-10 py-2.5 border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none transition-all duration-300 ${
+                  password.length > 0
+                    ? 'bg-slate-950/20 border-blue-500/40 backdrop-blur-md focus:border-blue-400'
+                    : 'bg-slate-950/60 border-slate-800/90 focus:border-blue-500'
+                }`}
               />
               <button
                 type="button"
