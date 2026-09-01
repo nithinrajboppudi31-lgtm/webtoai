@@ -380,6 +380,39 @@ app.get('/api/auth/me', authenticate, (req, res) => {
 // GOOGLE & GITHUB OAUTH ROUTES
 // ============================================================
 
+// Unified Direct OAuth Authentication (Google & GitHub)
+app.post('/api/auth/oauth', async (req, res) => {
+  try {
+    const { email, name } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required for authentication.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    let user = await prisma.user.findUnique({ where: { email: cleanEmail } });
+
+    if (!user) {
+      const dummyPass = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
+      user = await prisma.user.create({
+        data: {
+          email: cleanEmail,
+          name: name || cleanEmail.split('@')[0],
+          password: dummyPass,
+          freeBuildsUsed: 0,
+          freeBuildsTotal: 3,
+          role: 'USER',
+        },
+      });
+    }
+
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+    return res.status(200).json({ token, user: formatSafeUser(user) });
+  } catch (error) {
+    console.error('OAuth direct authentication error:', error);
+    return res.status(500).json({ error: 'OAuth authentication failed.' });
+  }
+});
+
 app.post('/api/auth/google', async (req, res) => {
   try {
     const { access_token } = req.body;
@@ -557,7 +590,7 @@ app.get('/api/payments/transactions', authenticate, async (req, res) => {
 });
 
 // ============================================================
-// PROJECTS CRUD
+// PROJECTS CRUD & SEO / VISIBILITY
 // ============================================================
 
 app.get('/api/projects', authenticate, async (req, res) => {
@@ -614,6 +647,64 @@ app.delete('/api/projects/:id', authenticate, async (req, res) => {
     return res.json({ message: 'Project deleted successfully.' });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to delete project.' });
+  }
+});
+
+// Toggle Project Visibility (Public/Private)
+app.patch('/api/projects/:id/visibility', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isPublic } = req.body;
+
+    const updated = await prisma.project.updateMany({
+      where: { id, userId: req.user.id },
+      data: { isPublic: !!isPublic },
+    });
+
+    if (updated.count === 0) {
+      return res.status(404).json({ error: 'Project not found.' });
+    }
+
+    return res.json({ success: true, isPublic: !!isPublic });
+  } catch (err) {
+    console.error('Project visibility update error:', err);
+    return res.status(500).json({ error: 'Failed to update visibility.' });
+  }
+});
+
+// Update Project SEO & Vanity Slug
+app.patch('/api/projects/:id/seo', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, slug, description } = req.body;
+
+    const project = await prisma.project.findFirst({
+      where: { id, userId: req.user.id },
+      include: { files: true },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found.' });
+    }
+
+    const updatedProject = await prisma.project.update({
+      where: { id },
+      data: {
+        name: title || project.name,
+        slug: slug || project.slug,
+        description: description !== undefined ? description : project.description,
+      },
+      include: { files: true },
+    });
+
+    return res.json({
+      success: true,
+      project: updatedProject,
+      entryHtml: updatedProject.entryHtml,
+    });
+  } catch (err) {
+    console.error('SEO update error:', err);
+    return res.status(500).json({ error: 'Failed to update SEO settings.' });
   }
 });
 
