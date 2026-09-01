@@ -869,7 +869,7 @@ ${targetedPrompt}
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                     Live Architect Stream
                   </span>
-                  <span>gemini-3.6-flash</span>
+                  <span>webtoai-flash</span>
                 </div>
                 <div className="space-y-1 max-h-24 overflow-hidden flex flex-col justify-end">
                   {liveLogs.map((log, index) => (
