@@ -120,6 +120,10 @@ export default function Workspace() {
       const res = await fetch(`${API_BASE}/api/projects/${id}`, {
         headers: { Authorization: `Bearer ${authToken}` }
       });
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server returned invalid response format.');
+      }
       const data = await res.json();
       if (res.ok && data.project) {
         setProject(data.project);
@@ -159,6 +163,10 @@ export default function Workspace() {
         body: JSON.stringify({ isPublic: nextState }),
       });
 
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Backend route not found or server error.');
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update visibility');
 
@@ -187,6 +195,11 @@ export default function Workspace() {
           description: seoDescription.trim(),
         }),
       });
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('SEO endpoint not deployed or invalid server response.');
+      }
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update SEO');
@@ -271,6 +284,10 @@ export default function Workspace() {
         body: JSON.stringify({ messages: updatedHistory })
       });
 
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Chat service unavailable.');
+      }
       const data = await res.json();
       if (res.ok) {
         setChatMessages([...updatedHistory, { role: 'assistant', content: data.message }]);
@@ -307,6 +324,10 @@ export default function Workspace() {
         body: JSON.stringify({ prompt: text.trim() })
       });
 
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Generation service encountered an error.');
+      }
       const data = await res.json();
 
       if (!res.ok) {
@@ -328,7 +349,6 @@ export default function Workspace() {
         setSelectedFile(data.files[0]);
       }
 
-      // Sync remaining credits locally in AuthContext[cite: 3]
       if (setUser && data.remainingCredits !== undefined) {
         setUser((prev) => ({
           ...prev,
@@ -379,6 +399,10 @@ ${targetedPrompt}
         method: 'POST',
         headers: { Authorization: `Bearer ${authToken}` }
       });
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Deployment service unavailable.');
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to deploy');
 
@@ -450,6 +474,10 @@ ${targetedPrompt}
         }),
       });
 
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('GitHub integration service unavailable.');
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to push to GitHub');
 
