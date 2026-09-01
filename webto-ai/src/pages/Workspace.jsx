@@ -6,6 +6,13 @@ import { saveAs } from 'file-saver';
 
 const API_BASE = 'https://webtoai-backend.onrender.com';
 
+const GENERATION_STAGES = [
+  { stage: '1/4', title: 'Parsing Architecture & Visual Hierarchy', log: 'Decoding prompt tokens and scanning visual structure...' },
+  { stage: '2/4', title: 'Synthesizing Tailwind CSS & Layout Modules', log: 'Constructing responsive DOM hierarchy and theme components...' },
+  { stage: '3/4', title: 'Compiling In-Memory State & Reactivity', log: 'Generating JavaScript state controllers and event listeners...' },
+  { stage: '4/4', title: 'Assembling Files & Standalone Sandbox', log: 'Synthesizing index.html, styles, and live preview runtime...' },
+];
+
 export default function Workspace() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -20,6 +27,8 @@ export default function Workspace() {
   const [promptInput, setPromptInput] = useState(location.state?.initialPrompt || '');
   const [generating, setGenerating] = useState(false);
   const [generateProgress, setGenerateProgress] = useState(0);
+  const [currentStageIndex, setCurrentStageIndex] = useState(0);
+  const [liveLogs, setLiveLogs] = useState([]);
   const [deploying, setDeploying] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -87,23 +96,62 @@ export default function Workspace() {
     }
   }, [project]);
 
-  // Smooth realistic progress counter when generating
+  // Live progress engine & backend milestone logger
   useEffect(() => {
-    let interval = null;
+    let progressInterval = null;
+    let logInterval = null;
+
     if (generating) {
-      setGenerateProgress(10);
-      interval = setInterval(() => {
+      setGenerateProgress(5);
+      setCurrentStageIndex(0);
+      setLiveLogs(['[INIT] Connecting to WEBTO AI synthesis engine...', '[SYS] Initializing LLM context & schema validation...']);
+
+      // Smooth progress calculation with dynamic stepping
+      progressInterval = setInterval(() => {
         setGenerateProgress((prev) => {
-          if (prev >= 95) return 95;
-          const increment = Math.floor(Math.random() * 8) + 3;
-          return Math.min(prev + increment, 95);
+          if (prev >= 98) return 98;
+          let inc = 1;
+          if (prev < 30) inc = Math.floor(Math.random() * 4) + 2;
+          else if (prev < 70) inc = Math.floor(Math.random() * 3) + 1;
+          else if (prev < 90) inc = Math.floor(Math.random() * 2) + 1;
+          else inc = 0.5;
+
+          const nextVal = Math.min(prev + inc, 98);
+
+          if (nextVal >= 25 && nextVal < 50) setCurrentStageIndex(1);
+          else if (nextVal >= 50 && nextVal < 75) setCurrentStageIndex(2);
+          else if (nextVal >= 75) setCurrentStageIndex(3);
+
+          return parseFloat(nextVal.toFixed(1));
         });
-      }, 350);
+      }, 250);
+
+      // Stream realistic backend console logs
+      logInterval = setInterval(() => {
+        const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+        const possibleLogs = [
+          `[${timestamp}] Synthesizing Tailwind design system & color scales...`,
+          `[${timestamp}] Rendering responsive flex & grid viewports...`,
+          `[${timestamp}] Building state management & reactive DOM events...`,
+          `[${timestamp}] Parsing FontAwesome glyph icons and typography...`,
+          `[${timestamp}] Compiling modular project files array...`,
+          `[${timestamp}] Sanitizing execution sandbox & HTML5 entrypoint...`
+        ];
+
+        setLiveLogs((prevLogs) => {
+          if (prevLogs.length >= 6) return [...prevLogs.slice(1), possibleLogs[Math.floor(Math.random() * possibleLogs.length)]];
+          return [...prevLogs, possibleLogs[prevLogs.length % possibleLogs.length]];
+        });
+      }, 1400);
     } else {
       setGenerateProgress(0);
+      setLiveLogs([]);
+      setCurrentStageIndex(0);
     }
+
     return () => {
-      if (interval) clearInterval(interval);
+      if (progressInterval) clearInterval(progressInterval);
+      if (logInterval) clearInterval(logInterval);
     };
   }, [generating]);
 
@@ -400,7 +448,7 @@ export default function Workspace() {
     } finally {
       setTimeout(() => {
         setGenerating(false);
-      }, 300);
+      }, 400);
     }
   };
 
@@ -779,36 +827,62 @@ ${targetedPrompt}
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden relative bg-slate-900/20">
         {generating && (
-          <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-5">
-            <div className="relative flex items-center justify-center">
-              <div className="w-20 h-20 rounded-full border-4 border-blue-500/20 border-t-blue-500 animate-spin"></div>
-              <i className="fa-solid fa-wand-magic-sparkles text-blue-400 text-2xl absolute"></i>
-            </div>
-
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-black text-white font-mono tracking-tight">{generateProgress}</span>
-                <span className="text-sm font-bold text-blue-400 font-mono">%</span>
+          <div className="absolute inset-0 bg-[#070b14]/90 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 select-none animate-in fade-in duration-200">
+            <div className="max-w-xl w-full bg-[#0c1222]/95 border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-blue-950/40 relative overflow-hidden flex flex-col items-center text-center">
+              {/* Top Status Badge */}
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-mono font-medium mb-4">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping"></span>
+                <span>STAGE {GENERATION_STAGES[currentStageIndex]?.stage || '1/4'}</span>
               </div>
-              <div className="w-56 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-600 to-indigo-500 transition-all duration-300 ease-out"
-                  style={{ width: `${generateProgress}%` }}
-                ></div>
-              </div>
-            </div>
 
-            <div className="text-center space-y-1">
-              <h3 className="text-base font-semibold text-white">Synthesizing Updates with WEBTO AI</h3>
-              <p className="text-xs text-slate-400">
-                {generateProgress < 35
-                  ? 'Analyzing prompt requirements & visual inputs...'
-                  : generateProgress < 70
-                  ? 'Compiling responsive layouts & modules...'
-                  : generateProgress < 95
-                  ? 'Synthesizing source files & preview...'
-                  : 'Finalizing live canvas updates...'}
+              {/* Title & Stage Description */}
+              <h3 className="text-lg sm:text-xl font-bold text-white mb-1.5 tracking-tight">
+                {GENERATION_STAGES[currentStageIndex]?.title || 'Synthesizing Full-Stack Web App'}
+              </h3>
+              <p className="text-xs text-slate-400 mb-6 max-w-md">
+                {GENERATION_STAGES[currentStageIndex]?.log || 'AI Architect is assembling your custom responsive interface...'}
               </p>
+
+              {/* Progress Bar & Numeric Readout */}
+              <div className="w-full mb-6 space-y-2">
+                <div className="flex justify-between items-center text-xs font-mono">
+                  <span className="text-slate-400 flex items-center gap-1.5">
+                    <i className="fa-solid fa-microchip text-blue-400 text-[11px]"></i>
+                    Engine Active
+                  </span>
+                  <span className="font-bold text-blue-400 text-sm">
+                    {Math.round(generateProgress)}%
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-slate-950 rounded-full p-0.5 border border-slate-800/80 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-sky-400 rounded-full transition-all duration-300 ease-out shadow-sm shadow-blue-500/50"
+                    style={{ width: `${generateProgress}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Live Backend Logs Terminal */}
+              <div className="w-full bg-[#070b14] border border-slate-800/80 rounded-2xl p-3.5 text-left font-mono text-[11px] text-slate-300 space-y-1.5 overflow-hidden shadow-inner">
+                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800 text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    Live Architect Stream
+                  </span>
+                  <span>gemini-3.6-flash</span>
+                </div>
+                <div className="space-y-1 max-h-24 overflow-hidden flex flex-col justify-end">
+                  {liveLogs.map((log, index) => (
+                    <p key={index} className="truncate text-slate-400 leading-tight">
+                      {log.startsWith('[INIT]') || log.startsWith('[SYS]') ? (
+                        <span className="text-blue-400 font-semibold">{log}</span>
+                      ) : (
+                        log
+                      )}
+                    </p>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         )}
