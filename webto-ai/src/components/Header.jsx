@@ -41,32 +41,37 @@ export default function Header() {
 
   return (
     <>
-      <header className="h-14 border-b border-slate-800/80 bg-[#070b14]/90 backdrop-blur-md px-6 flex items-center justify-between z-30">
+      <header className="h-14 border-b border-slate-800/80 bg-[#070b14]/90 backdrop-blur-md px-3.5 sm:px-6 flex items-center justify-between z-30 shrink-0 select-none">
         {/* Left / Title */}
-        <div className="flex items-center gap-2 text-xs text-slate-400">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-slate-400 truncate mr-2">
           <span className="hover:text-slate-200 cursor-pointer" onClick={() => navigate('/workspace')}>
             Workspace
           </span>
           <span>/</span>
-          <span className="text-white font-medium">Dashboard</span>
+          <span className="text-white font-medium capitalize">
+            Dashboard
+          </span>
         </div>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {/* Builds Badge */}
           <div
             onClick={() => navigate('/credits')}
-            className="px-3 py-1 bg-blue-950/60 border border-blue-500/30 rounded-full text-blue-400 text-xs font-semibold flex items-center gap-1.5 cursor-pointer hover:bg-blue-900/40 transition"
+            className="px-2.5 sm:px-3 py-1 bg-blue-950/60 border border-blue-500/30 rounded-full text-blue-400 text-xs font-semibold flex items-center gap-1.5 cursor-pointer hover:bg-blue-900/40 transition shrink-0"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>{creditsRemaining} Free Builds Left</span>
+            <span>
+              <span className="hidden sm:inline">{creditsRemaining} Free Builds Left</span>
+              <span className="sm:hidden">{creditsRemaining} Builds</span>
+            </span>
           </div>
 
           {/* Theme Toggle */}
           <button
             type="button"
             onClick={toggleTheme}
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition flex items-center justify-center"
+            className="p-1.5 sm:p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition flex items-center justify-center cursor-pointer shrink-0"
             title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
             {theme === 'dark' ? (
@@ -77,10 +82,10 @@ export default function Header() {
           </button>
 
           {/* Profile Circle & Dropdown */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center hover:ring-2 hover:ring-blue-400 transition"
+              className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center hover:ring-2 hover:ring-blue-400 transition cursor-pointer"
             >
               {user?.name ? user.name[0].toUpperCase() : 'N'}
             </button>
@@ -98,7 +103,7 @@ export default function Header() {
 
                 <button
                   onClick={() => navigate('/settings')}
-                  className="w-full px-4 py-2.5 flex items-center gap-2 hover:bg-slate-800/80 text-left transition"
+                  className="w-full px-4 py-2.5 flex items-center gap-2 hover:bg-slate-800/80 text-left transition cursor-pointer"
                 >
                   <SettingsIcon className="w-4 h-4 text-slate-400" />
                   <span>Settings</span>
@@ -106,7 +111,7 @@ export default function Header() {
 
                 <button
                   onClick={() => setShowLogoutModal(true)}
-                  className="w-full px-4 py-2.5 flex items-center gap-2 hover:bg-red-500/10 text-red-400 text-left transition"
+                  className="w-full px-4 py-2.5 flex items-center gap-2 hover:bg-red-500/10 text-red-400 text-left transition cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Log Out</span>
@@ -133,13 +138,13 @@ export default function Header() {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowLogoutModal(false)}
-                className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition"
+                className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmLogout}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-red-600/20 transition"
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-red-600/20 transition cursor-pointer"
               >
                 Yes, Log Out
               </button>
