@@ -592,6 +592,79 @@ app.get('/api/payments/transactions', authenticate, async (req, res) => {
 });
 
 // ============================================================
+// COMMUNITY EXPLORE & TEMPLATE REMIX ROUTES
+// ============================================================
+
+app.get('/api/explore/public', async (req, res) => {
+  try {
+    const projects = await prisma.project.findMany({
+      where: { isPublic: true },
+      include: {
+        user: { select: { name: true, email: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
+    });
+    return res.json({ projects });
+  } catch (err) {
+    console.error('Explore fetch error:', err);
+    return res.status(500).json({ error: 'Failed to fetch public showcase.' });
+  }
+});
+
+app.post('/api/projects/fork/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const sourceProject = await prisma.project.findUnique({
+      where: { id },
+      include: { files: true },
+    });
+
+    if (!sourceProject) {
+      return res.status(404).json({ error: 'Source project not found.' });
+    }
+
+    if (!sourceProject.isPublic && sourceProject.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Cannot remix a private project.' });
+    }
+
+    const clonedProject = await prisma.project.create({
+      data: {
+        userId: req.user.id,
+        name: `${sourceProject.name} (Remix)`,
+        description: sourceProject.description || 'Remixed from WEBTO AI showcase',
+        type: sourceProject.type || 'FULL_STACK',
+        entryHtml: sourceProject.entryHtml || '',
+        isPublic: false,
+      },
+    });
+
+    if (sourceProject.files && sourceProject.files.length > 0) {
+      for (const file of sourceProject.files) {
+        await prisma.projectFile.create({
+          data: {
+            projectId: clonedProject.id,
+            name: file.name,
+            path: file.path,
+            content: file.content,
+          },
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: 'Project cloned successfully!',
+      project: clonedProject,
+    });
+  } catch (err) {
+    console.error('Fork project error:', err);
+    return res.status(500).json({ error: 'Failed to remix project.' });
+  }
+});
+
+// ============================================================
 // PROJECTS CRUD & SEO / VISIBILITY
 // ============================================================
 
