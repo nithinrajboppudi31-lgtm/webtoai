@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Compass, Eye, Copy, ExternalLink, Globe, Search } from 'lucide-react';
+import { Compass, Eye, Copy, ExternalLink, Globe, Search, User, Sparkles } from 'lucide-react';
 
 const API_BASE = 'https://webtoai-backend.onrender.com';
 
@@ -64,7 +64,8 @@ export default function Explore() {
 
   const filteredProjects = projects.filter((p) =>
     (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (p.description || '').toLowerCase().includes(searchQuery.toLowerCase())
+    (p.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.user?.name || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -77,7 +78,7 @@ export default function Explore() {
             Community Explore
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Discover, preview, and remix full-stack web applications created by the WEBTO AI community.
+            Discover creator profiles, live app photos, and community architectures built on WEBTO AI.
           </p>
         </div>
 
@@ -85,7 +86,7 @@ export default function Explore() {
           <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search public apps..."
+            placeholder="Search apps or creators..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-[#0c1222] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
@@ -115,49 +116,91 @@ export default function Explore() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredProjects.map((proj) => (
-            <div
-              key={proj.id}
-              className="bg-[#0c1222] border border-slate-800/80 hover:border-emerald-500/40 rounded-3xl p-5 flex flex-col justify-between transition-all duration-200 group hover:shadow-xl hover:shadow-emerald-950/20"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] font-mono font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
-                    {proj.type || 'FULL_STACK'}
-                  </span>
-                  <span className="text-[10px] text-slate-500">
-                    By {proj.user?.name || 'Creator'}
-                  </span>
+          {filteredProjects.map((proj) => {
+            const authorName = proj.user?.name || 'WEBTO Creator';
+            const authorInitial = authorName.charAt(0).toUpperCase();
+
+            return (
+              <div
+                key={proj.id}
+                className="bg-[#0c1222] border border-slate-800/80 hover:border-emerald-500/40 rounded-3xl p-5 flex flex-col justify-between transition-all duration-200 group hover:shadow-xl hover:shadow-emerald-950/20"
+              >
+                <div>
+                  {/* Creator Profile Header */}
+                  <div className="flex items-center justify-between mb-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-white font-bold text-xs flex items-center justify-center shadow-md shadow-emerald-600/20 border border-emerald-400/30">
+                        {authorInitial}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-semibold text-slate-200 leading-none">
+                          {authorName}
+                        </span>
+                        <span className="text-[10px] text-slate-500 leading-tight mt-0.5">
+                          Verified Creator
+                        </span>
+                      </div>
+                    </div>
+
+                    <span className="text-[10px] font-mono font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                      {proj.type || 'WEB_APP'}
+                    </span>
+                  </div>
+
+                  {/* Visual Project Thumbnail / Photo Preview */}
+                  <div className="relative w-full h-36 rounded-2xl bg-slate-950/80 border border-slate-800/90 overflow-hidden mb-3.5 flex items-center justify-center group-hover:border-emerald-500/30 transition">
+                    {proj.thumbnailUrl ? (
+                      <img 
+                        src={proj.thumbnailUrl} 
+                        alt={proj.name} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#0a101d] to-[#060a12] p-4 text-center">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-1.5 shadow-inner">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <span className="text-[11px] font-mono text-slate-400 truncate max-w-full">
+                          {proj.name}
+                        </span>
+                        <span className="text-[9px] text-slate-600 uppercase tracking-widest mt-0.5">
+                          Live Sandbox Snapshot
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Project Title & Description */}
+                  <h3 className="text-base font-bold text-white mb-1.5 group-hover:text-emerald-400 transition-colors truncate">
+                    {proj.name}
+                  </h3>
+                  <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed mb-5">
+                    {proj.description || 'Interactive web application generated with WEBTO AI engine.'}
+                  </p>
                 </div>
 
-                <h3 className="text-base font-bold text-white mb-1.5 group-hover:text-emerald-400 transition-colors truncate">
-                  {proj.name}
-                </h3>
-                <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed mb-6">
-                  {proj.description || 'Interactive web application generated with WEBTO AI engine.'}
-                </p>
-              </div>
+                {/* Actions */}
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60">
+                  <button
+                    onClick={() => setPreviewProject(proj)}
+                    className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-700/60 transition"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Preview</span>
+                  </button>
 
-              <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60">
-                <button
-                  onClick={() => setPreviewProject(proj)}
-                  className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-700/60 transition"
-                >
-                  <Eye className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Preview</span>
-                </button>
-
-                <button
-                  onClick={() => handleCloneProject(proj)}
-                  disabled={cloningId === proj.id}
-                  className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-lg shadow-emerald-600/20 disabled:opacity-50"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>{cloningId === proj.id ? 'Cloning...' : 'Remix'}</span>
-                </button>
+                  <button
+                    onClick={() => handleCloneProject(proj)}
+                    disabled={cloningId === proj.id}
+                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{cloningId === proj.id ? 'Cloning...' : 'Remix'}</span>
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -166,9 +209,14 @@ export default function Explore() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-[#0c1222] border border-slate-800 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden shadow-2xl">
             <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#070b14]">
-              <div>
-                <h3 className="text-sm font-bold text-white">{previewProject.name}</h3>
-                <p className="text-[11px] text-slate-400">{previewProject.description || 'Community App'}</p>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center">
+                  {(previewProject.user?.name || 'C').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">{previewProject.name}</h3>
+                  <p className="text-[11px] text-slate-400">Created by {previewProject.user?.name || 'Creator'}</p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 {previewProject.deployedUrl && (
