@@ -595,12 +595,24 @@ app.get('/api/payments/transactions', authenticate, async (req, res) => {
 // COMMUNITY EXPLORE & TEMPLATE REMIX ROUTES
 // ============================================================
 
+// ============================================================
+// COMMUNITY EXPLORE & CREATOR PROFILES ROUTES
+// ============================================================
+
+// 1. Fetch public apps with full creator profiles and photos
 app.get('/api/explore/public', async (req, res) => {
   try {
     const projects = await prisma.project.findMany({
       where: { isPublic: true },
       include: {
-        user: { select: { name: true, email: true } },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            createdAt: true,
+          },
+        },
       },
       orderBy: { updatedAt: 'desc' },
       take: 50,
@@ -609,6 +621,50 @@ app.get('/api/explore/public', async (req, res) => {
   } catch (err) {
     console.error('Explore fetch error:', err);
     return res.status(500).json({ error: 'Failed to fetch public showcase.' });
+  }
+});
+
+// 2. Fetch all public creator accounts with their project counts
+app.get('/api/explore/creators', async (req, res) => {
+  try {
+    const creators = await prisma.user.findMany({
+      where: {
+        projects: {
+          some: { isPublic: true },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        createdAt: true,
+        projects: {
+          where: { isPublic: true },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            type: true,
+            updatedAt: true,
+          },
+        },
+      },
+      take: 30,
+    });
+
+    const safeCreators = creators.map((c) => ({
+      id: c.id,
+      name: c.name || c.email.split('@')[0],
+      email: c.email,
+      joinedAt: c.createdAt,
+      publicProjectsCount: c.projects.length,
+      recentProjects: c.projects.slice(0, 3),
+    }));
+
+    return res.json({ creators: safeCreators });
+  } catch (err) {
+    console.error('Creators fetch error:', err);
+    return res.status(500).json({ error: 'Failed to fetch creators.' });
   }
 });
 
