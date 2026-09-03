@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Sparkles, Mail, Lock, ArrowRight, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Mail, Lock, ArrowRight, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -14,9 +14,64 @@ export default function Login() {
 
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Dynamic transparency calculation based on user typing
   const isTyping = email.length > 0 || password.length > 0;
+
+  // Handle OAuth callback token / code when redirected back from Google or GitHub
+  useEffect(() => {
+    const handleOAuthRedirect = async () => {
+      // 1. Google OAuth implicit flow returns token in hash: #access_token=...
+      if (location.hash && location.hash.includes('access_token=')) {
+        const params = new URLSearchParams(location.hash.substring(1));
+        const accessToken = params.get('access_token');
+        if (accessToken) {
+          setOauthLoading(true);
+          try {
+            const res = await fetch('https://webtoai-backend.onrender.com/api/auth/google', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ access_token: accessToken }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Google login verification failed.');
+            login(data.token, data.user);
+            navigate(-1);
+          } catch (err) {
+            setError(err.message || 'Google sign in failed.');
+          } finally {
+            setOauthLoading(false);
+          }
+          return;
+        }
+      }
+
+      // 2. GitHub OAuth authorization code flow returns query param: ?code=...
+      const searchParams = new URLSearchParams(location.search);
+      const code = searchParams.get('code');
+      if (code) {
+        setOauthLoading(true);
+        try {
+          const res = await fetch('https://webtoai-backend.onrender.com/api/auth/github', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'GitHub authorization failed.');
+          login(data.token, data.user);
+          navigate(-1);
+        } catch (err) {
+          setError(err.message || 'GitHub sign in failed.');
+        } finally {
+          setOauthLoading(false);
+        }
+      }
+    };
+
+    handleOAuthRedirect();
+  }, [location, login, navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -41,7 +96,7 @@ export default function Login() {
       }
 
       login(data.token, data.user);
-      navigate('/');
+      navigate(-1);
     } catch (err) {
       console.warn('Backend login fallback:', err.message);
       setError(err.message || 'Login failed. Please check your credentials.');
@@ -94,7 +149,7 @@ export default function Login() {
       }
 
       login(data.token, data.user);
-      navigate('/');
+      navigate(-1);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -103,24 +158,35 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#070b14] bg-radial-gradient flex flex-col justify-center items-center p-4 font-sans text-slate-100 relative overflow-hidden">
-      {/* Background Ambient Glows for enhanced glass transparency reflection */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+    <div className="min-h-screen bg-[#070b14]/75 backdrop-blur-3xl flex flex-col justify-center items-center p-4 font-sans text-slate-100 relative overflow-hidden">
+      {/* Background Ambient Blue Glows for enhanced glass transparency reflection */}
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[32rem] h-[32rem] bg-blue-600/25 rounded-full blur-[140px] pointer-events-none"></div>
+      <div className="absolute bottom-10 right-1/4 w-80 h-80 bg-cyan-500/15 rounded-full blur-[120px] pointer-events-none"></div>
 
-      {/* Main Container - Transitions to deep transparent glass when typing */}
+      {/* Main Container - Deep transparent glass with backdrop blur */}
       <div 
         className={`w-full max-w-[420px] border rounded-3xl p-8 shadow-2xl relative overflow-hidden transition-all duration-500 ease-out ${
           isTyping
-            ? 'bg-[#0c1222]/25 border-blue-500/30 backdrop-blur-2xl shadow-blue-950/20'
-            : 'bg-[#0c1222]/60 border-slate-800/80 backdrop-blur-xl'
+            ? 'bg-[#0c162d]/40 border-blue-500/40 backdrop-blur-3xl shadow-blue-950/30'
+            : 'bg-[#0c162d]/60 border-slate-700/60 backdrop-blur-2xl shadow-black/40'
         }`}
       >
         {/* Top Accent Line */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent"></div>
 
+        {/* Back Button */}
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="absolute top-6 left-6 p-2 rounded-xl text-slate-400 hover:text-white bg-slate-900/40 hover:bg-slate-800/60 border border-slate-700/40 transition active:scale-95 cursor-pointer"
+          title="Go back"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-blue-600/10 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-3.5 shadow-lg shadow-blue-500/10">
+          <div className="w-12 h-12 rounded-2xl bg-blue-600/15 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-3.5 shadow-lg shadow-blue-500/15">
             <Sparkles className="w-6 h-6 animate-pulse" />
           </div>
           <h1 className="text-xl font-bold text-white tracking-tight">Welcome back</h1>
@@ -135,8 +201,8 @@ export default function Login() {
             onClick={() => handleOAuthLogin('google')}
             className={`w-full flex items-center justify-center gap-2.5 py-2.5 px-4 border rounded-xl text-xs font-semibold text-white transition-all duration-300 active:scale-[0.98] cursor-pointer ${
               isTyping 
-                ? 'bg-slate-900/30 hover:bg-slate-800/50 border-slate-700/40 backdrop-blur-sm' 
-                : 'bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60'
+                ? 'bg-slate-900/40 hover:bg-slate-800/60 border-slate-700/50 backdrop-blur-md' 
+                : 'bg-slate-900/70 hover:bg-slate-800/90 border-slate-700/70'
             }`}
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -157,7 +223,7 @@ export default function Login() {
                 d="M12 23.5c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.4-6.4-5.2L1.9 16.5C3.7 20.2 7.5 23.5 12 23.5z"
               />
             </svg>
-            <span>Continue with Google</span>
+            <span>{oauthLoading ? 'Authenticating...' : 'Continue with Google'}</span>
           </button>
 
           <button
@@ -166,22 +232,22 @@ export default function Login() {
             onClick={() => handleOAuthLogin('github')}
             className={`w-full flex items-center justify-center gap-2.5 py-2.5 px-4 border rounded-xl text-xs font-semibold text-white transition-all duration-300 active:scale-[0.98] cursor-pointer ${
               isTyping 
-                ? 'bg-slate-900/30 hover:bg-slate-800/50 border-slate-700/40 backdrop-blur-sm' 
-                : 'bg-slate-900/60 hover:bg-slate-800/80 border-slate-700/60'
+                ? 'bg-slate-900/40 hover:bg-slate-800/60 border-slate-700/50 backdrop-blur-md' 
+                : 'bg-slate-900/70 hover:bg-slate-800/90 border-slate-700/70'
             }`}
           >
             <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
               <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
             </svg>
-            <span>Continue with GitHub</span>
+            <span>{oauthLoading ? 'Authenticating...' : 'Continue with GitHub'}</span>
           </button>
         </div>
 
         {/* Divider */}
         <div className="relative flex items-center justify-center mb-5">
-          <div className="border-t border-slate-800/80 w-full"></div>
-          <span className={`px-3 text-[10px] uppercase tracking-wider text-slate-500 absolute font-semibold transition-colors duration-300 ${
-            isTyping ? 'bg-[#0c1222]/30 backdrop-blur-sm' : 'bg-[#0c1222]'
+          <div className="border-t border-slate-700/70 w-full"></div>
+          <span className={`px-3 text-[10px] uppercase tracking-wider text-slate-400 absolute font-semibold transition-colors duration-300 ${
+            isTyping ? 'bg-[#0c162d]/40 backdrop-blur-md' : 'bg-[#0c162d]'
           }`}>
             Or continue with email
           </span>
@@ -189,7 +255,7 @@ export default function Login() {
 
         {/* Error Alert */}
         {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-xs text-red-400 animate-in fade-in duration-150">
+          <div className="mb-4 p-3 bg-red-500/15 border border-red-500/30 rounded-xl flex items-center gap-2 text-xs text-red-400 animate-in fade-in duration-150">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -197,7 +263,7 @@ export default function Login() {
 
         {/* Success Alert */}
         {successMsg && (
-          <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-xl flex items-center gap-2 text-xs text-green-400 animate-in fade-in duration-150">
+          <div className="mb-4 p-3 bg-green-500/15 border border-green-500/30 rounded-xl flex items-center gap-2 text-xs text-green-400 animate-in fade-in duration-150">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>{successMsg}</span>
           </div>
@@ -218,7 +284,7 @@ export default function Login() {
                 placeholder="name@example.com"
                 className={`w-full pl-10 pr-4 py-2.5 border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none transition-all duration-300 ${
                   email.length > 0
-                    ? 'bg-slate-950/20 border-blue-500/40 backdrop-blur-md focus:border-blue-400'
+                    ? 'bg-slate-950/25 border-blue-500/50 backdrop-blur-md focus:border-blue-400'
                     : 'bg-slate-950/60 border-slate-800/90 focus:border-blue-500'
                 }`}
               />
@@ -249,7 +315,7 @@ export default function Login() {
                 placeholder="Enter your password"
                 className={`w-full pl-10 pr-10 py-2.5 border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none transition-all duration-300 ${
                   password.length > 0
-                    ? 'bg-slate-950/20 border-blue-500/40 backdrop-blur-md focus:border-blue-400'
+                    ? 'bg-slate-950/25 border-blue-500/50 backdrop-blur-md focus:border-blue-400'
                     : 'bg-slate-950/60 border-slate-800/90 focus:border-blue-500'
                 }`}
               />
