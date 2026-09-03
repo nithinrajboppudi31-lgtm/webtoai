@@ -458,37 +458,70 @@ app.post('/api/auth/github', async (req, res) => {
     const { code } = req.body;
     if (!code) return res.status(400).json({ error: 'Authorization code is required' });
 
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      console.error('❌ Missing GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET on Render.');
+      return res.status(500).json({
+        error: 'GitHub OAuth credentials missing on backend server.',
+      });
+    }
+
+    // Exchange the temporary code for an access token
     const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        'User-Agent': 'WEBTOAI-App',
       },
       body: JSON.stringify({
-        client_id: process.env.GITHUB_CLIENT_ID,
-        client_secret: process.env.GITHUB_CLIENT_SECRET,
-        code,
+        client_id: clientId.trim(),
+        client_secret: clientSecret.trim(),
+        code: code.trim(),
       }),
     });
 
     const tokenData = await tokenRes.json();
+    console.log('GitHub Token Exchange Response:', tokenData);
+
     if (tokenData.error || !tokenData.access_token) {
-      return res.status(401).json({ error: 'Failed to exchange GitHub authorization token' });
+      return res.status(401).json({ 
+        error: tokenData.error_description || tokenData.error || 'Failed to exchange GitHub authorization token' 
+      });
     }
 
+    // Fetch user profile
     const userRes = await fetch('https://api.github.com/user', {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      headers: { 
+        Authorization: `Bearer ${tokenData.access_token}`,
+        'User-Agent': 'WEBTOAI-App',
+      },
     });
+    
+    if (!userRes.ok) {
+      return res.status(401).json({ error: 'Failed to fetch user profile from GitHub' });
+    }
+    
     const profile = await userRes.json();
 
+    // Fetch user primary verified email if private
     let email = profile.email;
     if (!email) {
       const emailRes = await fetch('https://api.github.com/user/emails', {
-        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+        headers: { 
+          Authorization: `Bearer ${tokenData.access_token}`,
+          'User-Agent': 'WEBTOAI-App',
+        },
       });
-      const emails = await emailRes.json();
-      const primary = emails.find((e) => e.primary && e.verified);
-      email = primary ? primary.email : `${profile.login}@users.noreply.github.com`;
+      if (emailRes.ok) {
+        const emails = await emailRes.json();
+        const primary = Array.isArray(emails) && emails.find((e) => e.primary && e.verified);
+        email = primary ? primary.email : `${profile.login}@users.noreply.github.com`;
+      } else {
+        email = `${profile.login}@users.noreply.github.com`;
+      }
     }
 
     const cleanEmail = email.trim().toLowerCase();
@@ -512,10 +545,9 @@ app.post('/api/auth/github', async (req, res) => {
     return res.status(200).json({ token, user: formatSafeUser(user) });
   } catch (error) {
     console.error('GitHub authentication failed:', error);
-    return res.status(500).json({ error: 'GitHub authentication failed' });
+    return res.status(500).json({ error: error.message || 'GitHub authentication failed' });
   }
 });
-
 // ============================================================
 // WORKSPACE & ACCOUNT SHARING ROUTE
 // ============================================================
