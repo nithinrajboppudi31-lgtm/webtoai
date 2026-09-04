@@ -50,13 +50,17 @@ app.use(
   })
 );
 
-// Expanded body payload parsing for high-res photo uploads
+// Expanded body payload parsing
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ limit: '25mb', extended: true }));
 
 // Health Check Endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
+
+app.get('/', (req, res) => {
+  res.send('WEBTO AI Backend is running with PostgreSQL & Prisma live!');
 });
 
 // ============================================================
@@ -120,7 +124,6 @@ const authenticate = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    // If admin token
     if (decoded.role === 'ADMIN') {
       req.user = { id: 'admin', email: decoded.email, role: 'ADMIN' };
       return next();
@@ -156,7 +159,7 @@ app.post('/api/admin/request-otp', async (req, res) => {
 
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
     activeAdminOtp = generatedOtp;
-    adminOtpExpiresAt = Date.now() + 10 * 60 * 1000; // 10 mins
+    adminOtpExpiresAt = Date.now() + 10 * 60 * 1000;
 
     console.log('------------------------------------');
     console.log(`>>> WEBTO ADMIN OTP: ${generatedOtp} <<<`);
@@ -227,14 +230,90 @@ app.post('/api/admin/verify-otp', async (req, res) => {
   }
 });
 
+// ============================================================
+// ADMIN DASHBOARD DATA & PACKAGE SYNC ENDPOINTS
+// ============================================================
+
 // 1. Live Admin Dashboard Data Endpoint
+app.get('/api/admin/dashboard-data', async (req, res) => {
+  try {
+    const [totalUsers, totalProjects, users, payments] = await Promise.all([
+      prisma.user.count(),
+      prisma.project.count(),
+      prisma.user.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }),
+      prisma.payment.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+    ]);
+
+    let dbPackages = [];
+    try {
+      dbPackages = await prisma.pricingPackage.findMany();
+    } catch (e) {
+      console.warn('pricingPackage table read notice:', e.message);
+    }
+
+    const defaultPackages = [
+      { id: 'starter', name: 'Starter', price: '₹149', priceVal: 149, credits: '100 Credits', creditsVal: 100 },
+      { id: 'builder', name: 'Builder', price: '₹449', priceVal: 449, credits: '500 Credits', creditsVal: 500 },
+      { id: 'pro', name: 'Pro', price: '₹999', priceVal: 999, credits: '1500 Credits', creditsVal: 1500 },
+    ];
+
+    const creditPackages = defaultPackages.map((def) => {
+      const found = dbPackages.find((p) => p.id === def.id);
+      if (found) {
+        return {
+          id: found.id,
+          name: found.name || def.name,
+          price: `₹${found.priceInInr}`,
+          priceVal: found.priceInInr,
+          credits: `${found.credits} Credits`,
+          creditsVal: found.credits,
+        };
+      }
+      return def;
+    });
+
+    const totalRevenueSum = payments
+      .filter((p) => p.status === 'SUCCESS')
+      .reduce((acc, curr) => acc + (curr.amount || 0), 0);
+
+    const totalCreditsSold = payments
+      .filter((p) => p.status === 'SUCCESS')
+      .reduce((acc, curr) => acc + (curr.credits || 0), 0);
+
+    return res.json({
+      stats: {
+        totalUsers,
+        totalProjects,
+        totalRevenue: `₹${totalRevenueSum.toLocaleString()}`,
+        creditsSold: totalCreditsSold,
+        activeDeployments: totalProjects,
+      },
+      users: users.map(formatSafeUser),
+      transactions: payments.map((tx) => ({
+        id: tx.id,
+        user: tx.userId ? tx.userId.slice(0, 8) : 'Anonymous',
+        amount: `₹${tx.amount}`,
+        status: tx.status === 'SUCCESS' ? 'Success' : 'Failed',
+        date: new Date(tx.createdAt).toLocaleDateString(),
+      })),
+      creditPackages,
+    });
+  } catch (error) {
+    console.error('Dashboard data error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch dashboard data' });
+  }
+});
 
 // 2. Persistent Package Update Endpoint
 app.post('/api/admin/packages/update', async (req, res) => {
   try {
-    console.log('Received package update payload:', req.body);
     const { packageId, price, credits, name } = req.body;
-
     if (!packageId) {
       return res.status(400).json({ error: 'packageId is required' });
     }
@@ -247,7 +326,6 @@ app.post('/api/admin/packages/update', async (req, res) => {
       return res.status(400).json({ error: 'Valid numeric price and credits required' });
     }
 
-    // Try updating directly by matching ID
     const updated = await prisma.pricingPackage.upsert({
       where: { id: cleanId },
       update: {
@@ -263,7 +341,7 @@ app.post('/api/admin/packages/update', async (req, res) => {
       },
     });
 
-    console.log('Successfully saved to DB:', updated);
+    console.log('Saved package update to database:', updated);
     return res.json({ success: true, package: updated });
   } catch (error) {
     console.error('Error updating pricingPackage in DB:', error);
@@ -271,6 +349,52 @@ app.post('/api/admin/packages/update', async (req, res) => {
   }
 });
 
+// 3. Grant Global Credits Endpoint
+app.post('/api/admin/credits/grant-global', async (req, res) => {
+  try {
+    const { amount } = req.body;
+    const addCredits = parseInt(amount, 10) || 5;
+
+    await prisma.user.updateMany({
+      data: {
+        freeBuildsTotal: {
+          increment: addCredits,
+        },
+      },
+    });
+
+    return res.json({ success: true, message: `Granted ${addCredits} credits to all users.` });
+  } catch (error) {
+    console.error('Grant global credits error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to grant global credits' });
+  }
+});
+
+// 4. Adjust Single User Credit Endpoint
+app.post('/api/admin/credits/adjust-user', async (req, res) => {
+  try {
+    const { userId, delta } = req.body;
+    const deltaNum = parseInt(delta, 10) || 0;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        freeBuildsTotal: {
+          increment: deltaNum,
+        },
+      },
+    });
+
+    return res.json({ success: true, user: formatSafeUser(updated) });
+  } catch (error) {
+    console.error('Adjust user credit error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to adjust user credits' });
+  }
+});
 
 // Admin Payments Ledger Query
 app.get('/api/admin/payments', authenticate, async (req, res) => {
@@ -291,17 +415,14 @@ app.get('/api/admin/payments', authenticate, async (req, res) => {
   }
 });
 
-// Admin Update Pricing Packages Directly
-// 1. GET endpoint so frontend always gets latest database values
+// Public packages fetch for main site
 app.get('/api/packages', async (req, res) => {
   try {
     const packages = await prisma.pricingPackage.findMany();
-    
-    // Default fallback if database is empty on first load
     const packageMap = {
-      starter: { priceInInr: 199, credits: 10 },
-      builder: { priceInInr: 499, credits: 30 },
-      pro: { priceInInr: 999, credits: 100 },
+      starter: { priceInInr: 149, credits: 100 },
+      builder: { priceInInr: 449, credits: 500 },
+      pro: { priceInInr: 999, credits: 1500 },
     };
 
     packages.forEach((pkg) => {
@@ -315,82 +436,6 @@ app.get('/api/packages', async (req, res) => {
   } catch (error) {
     console.error('Error fetching packages:', error);
     return res.status(500).json({ error: 'Failed to fetch packages.' });
-  }
-});
-
-// 2. POST endpoint: permanently updates the database
-app.post('/api/admin/packages/update', async (req, res) => {
-  try {
-    const { packageId, price, credits, name, starterPrice, starterCredits, builderPrice, builderCredits, proPrice, proCredits } = req.body;
-
-    // Support single package update from modal
-    if (packageId) {
-      const cleanId = String(packageId).toLowerCase().trim();
-      const numPrice = Number(price);
-      const numCredits = Number(credits);
-
-      const updated = await prisma.pricingPackage.upsert({
-        where: { id: cleanId },
-        update: {
-          ...(!isNaN(numPrice) && { priceInInr: numPrice }),
-          ...(!isNaN(numCredits) && { credits: numCredits }),
-          ...(name && { name: String(name) }),
-        },
-        create: {
-          id: cleanId,
-          name: name || cleanId.toUpperCase(),
-          priceInInr: !isNaN(numPrice) ? numPrice : 0,
-          credits: !isNaN(numCredits) ? numCredits : 0,
-        },
-      });
-
-      return res.json({ success: true, package: updated });
-    }
-
-    // Support bulk update fallback
-    const operations = [];
-    if (starterPrice || starterCredits) {
-      operations.push(
-        prisma.pricingPackage.upsert({
-          where: { id: 'starter' },
-          update: {
-            ...(starterPrice && { priceInInr: Number(starterPrice) }),
-            ...(starterCredits && { credits: Number(starterCredits) }),
-          },
-          create: { id: 'starter', name: 'Starter Plan', priceInInr: Number(starterPrice) || 199, credits: Number(starterCredits) || 10 },
-        })
-      );
-    }
-    if (builderPrice || builderCredits) {
-      operations.push(
-        prisma.pricingPackage.upsert({
-          where: { id: 'builder' },
-          update: {
-            ...(builderPrice && { priceInInr: Number(builderPrice) }),
-            ...(builderCredits && { credits: Number(builderCredits) }),
-          },
-          create: { id: 'builder', name: 'Builder Plan', priceInInr: Number(builderPrice) || 499, credits: Number(builderCredits) || 30 },
-        })
-      );
-    }
-    if (proPrice || proCredits) {
-      operations.push(
-        prisma.pricingPackage.upsert({
-          where: { id: 'pro' },
-          update: {
-            ...(proPrice && { priceInInr: Number(proPrice) }),
-            ...(proCredits && { credits: Number(proCredits) }),
-          },
-          create: { id: 'pro', name: 'Pro Plan', priceInInr: Number(proPrice) || 999, credits: Number(proCredits) || 100 },
-        })
-      );
-    }
-
-    await Promise.all(operations);
-    return res.json({ success: true, message: 'Packages updated' });
-  } catch (error) {
-    console.error('Error updating package in DB:', error);
-    return res.status(500).json({ error: error.message || 'Failed to update package' });
   }
 });
 
@@ -470,7 +515,6 @@ app.get('/api/auth/me', authenticate, (req, res) => {
 // GOOGLE & GITHUB OAUTH ROUTES
 // ============================================================
 
-// Unified Direct OAuth Authentication (Google & GitHub)
 app.post('/api/auth/oauth', async (req, res) => {
   try {
     const { email, name } = req.body;
@@ -556,7 +600,6 @@ app.post('/api/auth/github', async (req, res) => {
       });
     }
 
-    // Exchange the temporary code for an access token
     const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
@@ -572,7 +615,6 @@ app.post('/api/auth/github', async (req, res) => {
     });
 
     const tokenData = await tokenRes.json();
-    console.log('GitHub Token Exchange Response:', tokenData);
 
     if (tokenData.error || !tokenData.access_token) {
       return res.status(401).json({ 
@@ -580,7 +622,6 @@ app.post('/api/auth/github', async (req, res) => {
       });
     }
 
-    // Fetch user profile
     const userRes = await fetch('https://api.github.com/user', {
       headers: { 
         Authorization: `Bearer ${tokenData.access_token}`,
@@ -594,7 +635,6 @@ app.post('/api/auth/github', async (req, res) => {
     
     const profile = await userRes.json();
 
-    // Fetch user primary verified email if private
     let email = profile.email;
     if (!email) {
       const emailRes = await fetch('https://api.github.com/user/emails', {
@@ -605,11 +645,13 @@ app.post('/api/auth/github', async (req, res) => {
       });
       if (emailRes.ok) {
         const emails = await emailRes.json();
-        const primary = Array.isArray(emails) && emails.find((e) => e.primary && e.verified);
-        email = primary ? primary.email : `${profile.login}@users.noreply.github.com`;
-      } else {
-        email = `${profile.login}@users.noreply.github.com`;
+        const primaryEmail = emails.find((e) => e.primary && e.verified);
+        if (primaryEmail) email = primaryEmail.email;
       }
+    }
+
+    if (!email) {
+      email = `${profile.login}@users.noreply.github.com`;
     }
 
     const cleanEmail = email.trim().toLowerCase();
@@ -620,7 +662,7 @@ app.post('/api/auth/github', async (req, res) => {
       user = await prisma.user.create({
         data: {
           email: cleanEmail,
-          name: profile.name || profile.login || cleanEmail.split('@')[0],
+          name: profile.name || profile.login,
           password: dummyPass,
           freeBuildsUsed: 0,
           freeBuildsTotal: 3,
@@ -633,855 +675,11 @@ app.post('/api/auth/github', async (req, res) => {
     return res.status(200).json({ token, user: formatSafeUser(user) });
   } catch (error) {
     console.error('GitHub authentication failed:', error);
-    return res.status(500).json({ error: error.message || 'GitHub authentication failed' });
-  }
-});
-// ============================================================
-// WORKSPACE & ACCOUNT SHARING ROUTE
-// ============================================================
-
-app.post('/api/share/invite', authenticate, async (req, res) => {
-  try {
-    const { targetEmail } = req.body;
-    if (!targetEmail) {
-      return res.status(400).json({ error: 'Target user email is required' });
-    }
-
-    const cleanTargetEmail = targetEmail.trim().toLowerCase();
-    const shareToken = crypto.randomBytes(16).toString('hex');
-    const clientUrl = process.env.CLIENT_URL || 'https://webtoai.vercel.app';
-    const shareUrl = `${clientUrl}/?shared_by=${encodeURIComponent(req.user.email)}&invite_token=${shareToken}`;
-
-    return res.json({
-      success: true,
-      message: `Workspace invite generated for ${cleanTargetEmail}!`,
-      shareUrl,
-    });
-  } catch (error) {
-    console.error('Share invite error:', error);
-    return res.status(500).json({ error: 'Failed to create share invite.' });
+    return res.status(500).json({ error: 'GitHub authentication failed' });
   }
 });
 
-// ============================================================
-// CREDITS & TRANSACTIONS ROUTE
-// ============================================================
-
-app.post('/api/credits/refill', authenticate, async (req, res) => {
-  try {
-    const updatedUser = await prisma.user.update({
-      where: { id: req.user.id },
-      data: {
-        freeBuildsUsed: 0,
-        freeBuildsTotal: 100,
-      },
-    });
-
-    return res.json({
-      message: 'Credits refilled successfully!',
-      user: formatSafeUser(updatedUser),
-    });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to refill credits.' });
-  }
-});
-
-app.get('/api/payments/transactions', authenticate, async (req, res) => {
-  try {
-    const payments = await prisma.payment.findMany({
-      where: { userId: req.user.id },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-    });
-
-    const userCredits = Math.max(0, (req.user.freeBuildsTotal ?? 3) - (req.user.freeBuildsUsed ?? 0));
-
-    const formattedTransactions = payments.map((p) => ({
-      id: p.id,
-      description: `Purchased ${p.planKey || 'Credits Package'}`,
-      amount: p.amount || 0,
-      balanceAfter: userCredits,
-      createdAt: p.createdAt,
-    }));
-
-    return res.json({ transactions: formattedTransactions });
-  } catch (err) {
-    console.error('Error fetching user transactions:', err);
-    return res.status(500).json({ error: 'Failed to load transaction records.' });
-  }
-});
-
-// ============================================================
-// COMMUNITY EXPLORE & TEMPLATE REMIX ROUTES
-// ============================================================
-
-// ============================================================
-// COMMUNITY EXPLORE & CREATOR PROFILES ROUTES
-// ============================================================
-
-// 1. Fetch public apps with full creator profiles and photos
-app.get('/api/explore/public', async (req, res) => {
-  try {
-    const projects = await prisma.project.findMany({
-      where: { isPublic: true },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            createdAt: true,
-          },
-        },
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 50,
-    });
-    return res.json({ projects });
-  } catch (err) {
-    console.error('Explore fetch error:', err);
-    return res.status(500).json({ error: 'Failed to fetch public showcase.' });
-  }
-});
-
-// 2. Fetch all public creator accounts with their project counts
-app.get('/api/explore/creators', async (req, res) => {
-  try {
-    const creators = await prisma.user.findMany({
-      where: {
-        projects: {
-          some: { isPublic: true },
-        },
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        createdAt: true,
-        projects: {
-          where: { isPublic: true },
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            type: true,
-            updatedAt: true,
-          },
-        },
-      },
-      take: 30,
-    });
-
-    const safeCreators = creators.map((c) => ({
-      id: c.id,
-      name: c.name || c.email.split('@')[0],
-      email: c.email,
-      joinedAt: c.createdAt,
-      publicProjectsCount: c.projects.length,
-      recentProjects: c.projects.slice(0, 3),
-    }));
-
-    return res.json({ creators: safeCreators });
-  } catch (err) {
-    console.error('Creators fetch error:', err);
-    return res.status(500).json({ error: 'Failed to fetch creators.' });
-  }
-});
-
-app.post('/api/projects/fork/:id', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const sourceProject = await prisma.project.findUnique({
-      where: { id },
-      include: { files: true },
-    });
-
-    if (!sourceProject) {
-      return res.status(404).json({ error: 'Source project not found.' });
-    }
-
-    if (!sourceProject.isPublic && sourceProject.userId !== req.user.id) {
-      return res.status(403).json({ error: 'Cannot remix a private project.' });
-    }
-
-    const clonedProject = await prisma.project.create({
-      data: {
-        userId: req.user.id,
-        name: `${sourceProject.name} (Remix)`,
-        description: sourceProject.description || 'Remixed from WEBTO AI showcase',
-        type: sourceProject.type || 'FULL_STACK',
-        entryHtml: sourceProject.entryHtml || '',
-        isPublic: false,
-      },
-    });
-
-    if (sourceProject.files && sourceProject.files.length > 0) {
-      for (const file of sourceProject.files) {
-        await prisma.projectFile.create({
-          data: {
-            projectId: clonedProject.id,
-            name: file.name,
-            path: file.path,
-            content: file.content,
-          },
-        });
-      }
-    }
-
-    return res.json({
-      success: true,
-      message: 'Project cloned successfully!',
-      project: clonedProject,
-    });
-  } catch (err) {
-    console.error('Fork project error:', err);
-    return res.status(500).json({ error: 'Failed to remix project.' });
-  }
-});
-
-// ============================================================
-// PROJECTS CRUD & SEO / VISIBILITY
-// ============================================================
-
-app.get('/api/projects', authenticate, async (req, res) => {
-  try {
-    const projects = await prisma.project.findMany({
-      where: { userId: req.user.id },
-      include: { files: true },
-      orderBy: { updatedAt: 'desc' },
-    });
-    return res.json({ projects });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to fetch projects.' });
-  }
-});
-
-app.post('/api/projects', authenticate, async (req, res) => {
-  try {
-    const { name, description, type } = req.body;
-    const project = await prisma.project.create({
-      data: {
-        userId: req.user.id,
-        name: name || 'Untitled Web App',
-        description: description || '',
-        type: type || 'FULL_STACK',
-      },
-      include: { files: true },
-    });
-    return res.json({ project });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to create project.' });
-  }
-});
-
-app.get('/api/projects/:id', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const project = await prisma.project.findFirst({
-      where: { id, userId: req.user.id },
-      include: { files: true },
-    });
-    if (!project) return res.status(404).json({ error: 'Project not found.' });
-    return res.json({ project });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to fetch project.' });
-  }
-});
-
-app.delete('/api/projects/:id', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    await prisma.project.deleteMany({
-      where: { id, userId: req.user.id },
-    });
-    return res.json({ message: 'Project deleted successfully.' });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to delete project.' });
-  }
-});
-
-// Toggle Project Visibility (Public/Private)
-app.patch('/api/projects/:id/visibility', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { isPublic } = req.body;
-
-    const updated = await prisma.project.updateMany({
-      where: { id, userId: req.user.id },
-      data: { isPublic: !!isPublic },
-    });
-
-    if (updated.count === 0) {
-      return res.status(404).json({ error: 'Project not found.' });
-    }
-
-    return res.json({ success: true, isPublic: !!isPublic });
-  } catch (err) {
-    console.error('Project visibility update error:', err);
-    return res.status(500).json({ error: 'Failed to update visibility.' });
-  }
-});
-
-// Update Project SEO & Vanity Slug
-app.patch('/api/projects/:id/seo', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { title, slug, description } = req.body;
-
-    const project = await prisma.project.findFirst({
-      where: { id, userId: req.user.id },
-      include: { files: true },
-    });
-
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found.' });
-    }
-
-    const updatedProject = await prisma.project.update({
-      where: { id },
-      data: {
-        name: title || project.name,
-        slug: slug || project.slug,
-        description: description !== undefined ? description : project.description,
-      },
-      include: { files: true },
-    });
-
-    return res.json({
-      success: true,
-      project: updatedProject,
-      entryHtml: updatedProject.entryHtml,
-    });
-  } catch (err) {
-    console.error('SEO update error:', err);
-    return res.status(500).json({ error: 'Failed to update SEO settings.' });
-  }
-});
-
-// ============================================================
-// AI CHAT & GENERATION (Multimodal Image Support)
-// ============================================================
-
-app.post('/api/chat/:id', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { messages } = req.body;
-    const project = await prisma.project.findFirst({
-      where: { id, userId: req.user.id },
-    });
-    if (!project) return res.status(404).json({ error: 'Project not found.' });
-
-    const chatResult = await generateChatReply(project.name, project.type, messages || []);
-    return res.json(chatResult);
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to process chat.' });
-  }
-});
-
-app.post('/api/generate/:id', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { prompt, image } = req.body;
-
-    if (!prompt && !image) return res.status(400).json({ error: 'Prompt or image is required.' });
-
-    const project = await prisma.project.findFirst({
-      where: { id, userId: req.user.id },
-      include: { files: true },
-    });
-
-    if (!project) return res.status(404).json({ error: 'Project not found.' });
-
-    const totalBuilds = req.user.freeBuildsTotal ?? 3;
-    const usedBuilds = req.user.freeBuildsUsed ?? 0;
-
-    if (usedBuilds >= totalBuilds) {
-      return res.status(403).json({ error: 'No build credits remaining. Please upgrade your plan.' });
-    }
-
-    const existingIndex = project.files?.find((f) => f.name === 'index.html');
-    const existingCode = existingIndex?.content || project.entryHtml || '';
-
-    // Pass image into generateProjectCode
-    const generatedData = await generateProjectCode(
-      prompt || 'Recreate and build modern responsive web UI matching this design photo',
-      project.type,
-      existingCode,
-      image
-    );
-
-    if (!generatedData || !generatedData.entryHtml) {
-      return res.status(500).json({ error: 'Invalid response from AI engine.' });
-    }
-
-    let filesToSave = generatedData.files || [];
-    const hasIndex = filesToSave.some((f) => f.name === 'index.html');
-    if (!hasIndex) {
-      filesToSave.unshift({
-        name: 'index.html',
-        path: '/index.html',
-        content: generatedData.entryHtml,
-      });
-    }
-
-    await prisma.projectFile.deleteMany({ where: { projectId: id } });
-
-    for (const file of filesToSave) {
-      await prisma.projectFile.create({
-        data: {
-          projectId: id,
-          name: file.name,
-          content: file.name === 'index.html' ? generatedData.entryHtml : file.content,
-          path: file.path || `/${file.name}`,
-        },
-      });
-    }
-
-    await prisma.projectVersion.create({
-      data: {
-        projectId: id,
-        prompt: (prompt || 'UI Generated from Photo').slice(0, 500),
-        entryHtml: generatedData.entryHtml,
-      },
-    });
-
-    await prisma.project.update({
-      where: { id },
-      data: { entryHtml: generatedData.entryHtml },
-    });
-
-    const updatedUser = await prisma.user.update({
-      where: { id: req.user.id },
-      data: {
-        freeBuildsUsed: { increment: 1 },
-      },
-    });
-
-    return res.json({
-      success: true,
-      entryHtml: generatedData.entryHtml,
-      files: filesToSave,
-      remainingCredits: Math.max(0, updatedUser.freeBuildsTotal - updatedUser.freeBuildsUsed),
-    });
-  } catch (err) {
-    console.error('Generation error:', err);
-    return res.status(500).json({ error: err.message || 'AI generation failed.' });
-  }
-});
-
-// ============================================================
-// HISTORY & ROLLBACK
-// ============================================================
-
-app.get('/api/projects/:id/history', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const versions = await prisma.projectVersion.findMany({
-      where: { projectId: id },
-      orderBy: { createdAt: 'desc' },
-    });
-    return res.json({ versions });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to fetch history.' });
-  }
-});
-
-app.post('/api/projects/:id/rollback/:versionId', authenticate, async (req, res) => {
-  try {
-    const { id, versionId } = req.params;
-    const version = await prisma.projectVersion.findFirst({
-      where: { id, versionId, projectId: id },
-    });
-
-    if (!version) return res.status(404).json({ error: 'Version not found.' });
-
-    await prisma.projectFile.deleteMany({
-      where: { projectId: id, name: 'index.html' },
-    });
-
-    await prisma.projectFile.create({
-      data: {
-        projectId: id,
-        name: 'index.html',
-        path: '/index.html',
-        content: version.entryHtml,
-      },
-    });
-
-    await prisma.project.update({
-      where: { id },
-      data: { entryHtml: version.entryHtml },
-    });
-
-    return res.json({
-      message: 'Rolled back to version successfully!',
-      entryHtml: version.entryHtml,
-    });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to rollback.' });
-  }
-});
-
-// ============================================================
-// DEPLOYMENT ROUTES
-// ============================================================
-
-app.post('/api/deploy/:id', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const project = await prisma.project.findFirst({
-      where: { id, userId: req.user.id },
-      include: { files: true },
-    });
-
-    if (!project) return res.status(404).json({ error: 'Project not found.' });
-
-    const indexFile = project.files.find((f) => f.name === 'index.html');
-    const contentToDeploy = indexFile?.content || project.entryHtml;
-
-    if (!contentToDeploy) {
-      return res.status(400).json({ error: 'Generate code first before deploying.' });
-    }
-
-    const baseTitle = (project.name || 'app')
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '-')
-      .replace(/-+/g, '-')
-      .slice(0, 20);
-
-    const shortId = project.id.slice(0, 6);
-    let liveUrl = `https://webtoai-backend.onrender.com/live/${baseTitle}-${shortId}`;
-    const liveSlug = `${baseTitle}-${shortId}`;
-
-    const updatedProject = await prisma.project.update({
-      where: { id },
-      data: {
-        isDeployed: true,
-        deployedUrl: liveUrl,
-        slug: liveSlug,
-      },
-    });
-
-    return res.json({
-      message: 'Project deployed successfully!',
-      deployedUrl: liveUrl,
-      project: updatedProject,
-    });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to deploy project.' });
-  }
-});
-
-app.get('/api/deployments', authenticate, async (req, res) => {
-  try {
-    const deployedProjects = await prisma.project.findMany({
-      where: { userId: req.user.id, isDeployed: true },
-      include: { files: true },
-      orderBy: { updatedAt: 'desc' },
-    });
-    return res.json({ deployments: deployedProjects });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to fetch deployments.' });
-  }
-});
-
-app.delete('/api/deploy/:id', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    await prisma.project.updateMany({
-      where: { id, userId: req.user.id },
-      data: { isDeployed: false, deployedUrl: null },
-    });
-    return res.json({ message: 'Project unpublished successfully.' });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to unpublish project.' });
-  }
-});
-
-app.get('/live/:slug', async (req, res) => {
-  try {
-    const { slug } = req.params;
-    const shortId = slug.split('-').pop();
-
-    const project = await prisma.project.findFirst({
-      where: {
-        OR: [{ slug }, { id: { startsWith: shortId } }],
-      },
-      include: { files: true },
-    });
-
-    const indexFile = project?.files?.find((f) => f.name === 'index.html');
-    const content = indexFile?.content || project?.entryHtml;
-
-    if (!project || !content) {
-      return res.status(404).send('<h2>404 - Deployment Not Found</h2>');
-    }
-
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.send(content);
-  } catch (err) {
-    return res.status(500).send('Internal server error.');
-  }
-});
-
-// ============================================================
-// SETTINGS & PROFILE ROUTES
-// ============================================================
-
-app.put('/api/user/profile', authenticate, async (req, res) => {
-  try {
-    const { name } = req.body;
-    const updatedUser = await prisma.user.update({
-      where: { id: req.user.id },
-      data: { name: name || req.user.name },
-    });
-    return res.json({
-      message: 'Profile updated successfully!',
-      user: formatSafeUser(updatedUser),
-    });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to update profile.' });
-  }
-});
-
-// ============================================================
-// ADMIN CREDIT DISPATCH ROUTES
-// ============================================================
-
-app.post('/api/admin/credits/global', authenticate, async (req, res) => {
-  try {
-    if (req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
-    }
-
-    const { amount = 10 } = req.body;
-    const result = await prisma.user.updateMany({
-      data: {
-        freeBuildsTotal: {
-          increment: Number(amount),
-        },
-      },
-    });
-
-    return res.json({
-      message: `Successfully added ${amount} build credits to all ${result.count} users!`,
-      affectedUsers: result.count,
-    });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to distribute global credits.' });
-  }
-});
-
-app.post('/api/admin/credits/user', authenticate, async (req, res) => {
-  try {
-    if (req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
-    }
-
-    const { email, amount = 10 } = req.body;
-    if (!email) return res.status(400).json({ error: 'User email is required.' });
-
-    const targetUser = await prisma.user.findUnique({
-      where: { email: email.trim().toLowerCase() },
-    });
-
-    if (!targetUser) {
-      return res.status(404).json({ error: `User with email "${email}" not found.` });
-    }
-
-    const updatedUser = await prisma.user.update({
-      where: { email: email.trim().toLowerCase() },
-      data: {
-        freeBuildsTotal: {
-          increment: Number(amount),
-        },
-      },
-    });
-
-    return res.json({
-      message: `Successfully added ${amount} build credits to ${targetUser.email}!`,
-      user: formatSafeUser(updatedUser),
-    });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to grant user credits.' });
-  }
-});
-
-// ============================================================
-// RAZORPAY PAYMENT & DYNAMIC PACKAGES ROUTES
-// ============================================================
-
-const PACKAGES = {
-  starter: { name: 'Starter Plan', credits: 100, priceInInr: 99 },
-  builder: { name: 'Builder Plan', credits: 500, priceInInr: 399 },
-  pro: { name: 'Pro Plan', credits: 1500, priceInInr: 999 },
-};
-
-app.get('/api/payments/packages', (req, res) => {
-  return res.json({ packages: PACKAGES });
-});
-
-app.post('/api/payments/create-order', authenticate, async (req, res) => {
-  try {
-    const { planKey } = req.body;
-    const plan = PACKAGES[planKey];
-    if (!plan) return res.status(400).json({ error: 'Invalid package plan.' });
-
-    const options = {
-      amount: plan.priceInInr * 100, // convert INR to paise
-      currency: 'INR',
-      receipt: `receipt_${Date.now()}`,
-    };
-
-    const order = await razorpay.orders.create(options);
-    return res.json({
-      orderId: order.id,
-      amount: order.amount,
-      currency: order.currency,
-      keyId: process.env.RAZORPAY_KEY_ID,
-    });
-  } catch (error) {
-    console.error('Order creation error:', error);
-    return res.status(500).json({ error: 'Failed to create payment order.' });
-  }
-});
-
-app.post('/api/payments/verify', authenticate, async (req, res) => {
-  try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planKey } = req.body;
-    const plan = PACKAGES[planKey];
-
-    if (!plan) return res.status(400).json({ error: 'Invalid package selection.' });
-
-    const generatedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'rzp_secret_placeholder')
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest('hex');
-
-    if (generatedSignature !== razorpay_signature) {
-      return res.status(400).json({ error: 'Payment signature verification failed.' });
-    }
-
-    // Record payment ledger
-    await prisma.payment.create({
-      data: {
-        userId: req.user.id,
-        amount: plan.priceInInr,
-        currency: 'INR',
-        status: 'SUCCESS',
-        orderId: razorpay_order_id,
-        paymentId: razorpay_payment_id,
-      },
-    });
-
-    // Credit build builds to user
-    const updatedUser = await prisma.user.update({
-      where: { id: req.user.id },
-      data: {
-        freeBuildsTotal: {
-          increment: plan.credits,
-        },
-      },
-    });
-
-    return res.json({
-      success: true,
-      message: 'Payment verified and credits added successfully!',
-      user: formatSafeUser(updatedUser),
-    });
-  } catch (error) {
-    console.error('Payment verification error:', error);
-    return res.status(500).json({ error: 'Payment verification failed.' });
-  }
-});
-// Test Root
-app.get('/', (req, res) => {
-  res.send('WEBTO AI Backend is live with latest routes!');
-});
-
-// Live Admin Dashboard Data Endpoint
-app.get('/api/admin/dashboard-data', async (req, res) => {
-  try {
-    const [totalUsers, totalProjects, users, payments] = await Promise.all([
-      prisma.user.count(),
-      prisma.project.count(),
-      prisma.user.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      }),
-      prisma.payment.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 20,
-      }),
-    ]);
-
-    let dbPackages = [];
-    try {
-      dbPackages = await prisma.pricingPackage.findMany();
-    } catch (e) {
-      console.warn('pricingPackage fallback:', e.message);
-    }
-
-    const defaultPackages = [
-      { id: 'starter', name: 'Starter Plan', price: '₹199', priceVal: 199, credits: '10 Credits', creditsVal: 10 },
-      { id: 'builder', name: 'Builder Plan', price: '₹499', priceVal: 499, credits: '30 Credits', creditsVal: 30 },
-      { id: 'pro', name: 'Pro Plan', price: '₹999', priceVal: 999, credits: '100 Credits', creditsVal: 100 },
-    ];
-
-    const creditPackages = defaultPackages.map((def) => {
-      const found = dbPackages.find((p) => p.id === def.id);
-      if (found) {
-        return {
-          id: found.id,
-          name: found.name || def.name,
-          price: `₹${found.priceInInr}`,
-          priceVal: found.priceInInr,
-          credits: `${found.credits} Credits`,
-          creditsVal: found.credits,
-        };
-      }
-      return def;
-    });
-
-    const totalRevenueSum = payments
-      .filter((p) => p.status === 'SUCCESS')
-      .reduce((acc, curr) => acc + (curr.amount || 0), 0);
-
-    const totalCreditsSold = payments
-      .filter((p) => p.status === 'SUCCESS')
-      .reduce((acc, curr) => acc + (curr.credits || 0), 0);
-
-    return res.json({
-      stats: {
-        totalUsers,
-        totalProjects,
-        totalRevenue: `₹${totalRevenueSum.toLocaleString()}`,
-        creditsSold: totalCreditsSold,
-        activeDeployments: totalProjects,
-      },
-      users: users.map(formatSafeUser),
-      transactions: payments.map((tx) => ({
-        id: tx.id,
-        user: tx.userId ? tx.userId.slice(0, 8) : 'Anonymous',
-        amount: `₹${tx.amount}`,
-        status: tx.status === 'SUCCESS' ? 'Success' : 'Failed',
-        date: new Date(tx.createdAt).toLocaleDateString(),
-      })),
-      creditPackages,
-    });
-  } catch (error) {
-    console.error('Dashboard data error:', error);
-    return res.status(500).json({ error: error.message || 'Failed to fetch dashboard data' });
-  }
-});
-
-// ============================================================
-// START SERVER (Render Compatible 0.0.0.0 Binding)
-// ============================================================
-
-// Remove 'const' so it reuses the existing PORT variable or defaults safely
-const portToUse = process.env.PORT || 5000;
-app.listen(portToUse, '0.0.0.0', () => {
-  console.log(`WEBTO AI Backend running on port ${portToUse}`);
+// Single app.listen call to avoid duplicate port errors
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`WEBTO AI Backend running on port ${PORT}`);
 });
