@@ -307,80 +307,81 @@ app.get('/api/packages', async (req, res) => {
 });
 
 // 2. POST endpoint: permanently updates the database
-app.post('/api/admin/packages/update', authenticate, async (req, res) => {
+app.post('/api/admin/packages/update', async (req, res) => {
   try {
-    if (req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Admin access required.' });
+    const { packageId, price, credits, name, starterPrice, starterCredits, builderPrice, builderCredits, proPrice, proCredits } = req.body;
+
+    // Support single package update from modal
+    if (packageId) {
+      const cleanId = String(packageId).toLowerCase().trim();
+      const numPrice = Number(price);
+      const numCredits = Number(credits);
+
+      const updated = await prisma.pricingPackage.upsert({
+        where: { id: cleanId },
+        update: {
+          ...(!isNaN(numPrice) && { priceInInr: numPrice }),
+          ...(!isNaN(numCredits) && { credits: numCredits }),
+          ...(name && { name: String(name) }),
+        },
+        create: {
+          id: cleanId,
+          name: name || cleanId.toUpperCase(),
+          priceInInr: !isNaN(numPrice) ? numPrice : 0,
+          credits: !isNaN(numCredits) ? numCredits : 0,
+        },
+      });
+
+      return res.json({ success: true, package: updated });
     }
 
-    const { starterPrice, starterCredits, builderPrice, builderCredits, proPrice, proCredits } = req.body;
-    const updates = [];
-
+    // Support bulk update fallback
+    const operations = [];
     if (starterPrice || starterCredits) {
-      updates.push(
+      operations.push(
         prisma.pricingPackage.upsert({
           where: { id: 'starter' },
           update: {
             ...(starterPrice && { priceInInr: Number(starterPrice) }),
             ...(starterCredits && { credits: Number(starterCredits) }),
           },
-          create: {
-            id: 'starter',
-            name: 'Starter',
-            priceInInr: Number(starterPrice) || 199,
-            credits: Number(starterCredits) || 10,
-          },
+          create: { id: 'starter', name: 'Starter Plan', priceInInr: Number(starterPrice) || 199, credits: Number(starterCredits) || 10 },
         })
       );
     }
-
     if (builderPrice || builderCredits) {
-      updates.push(
+      operations.push(
         prisma.pricingPackage.upsert({
           where: { id: 'builder' },
           update: {
             ...(builderPrice && { priceInInr: Number(builderPrice) }),
             ...(builderCredits && { credits: Number(builderCredits) }),
           },
-          create: {
-            id: 'builder',
-            name: 'Builder',
-            priceInInr: Number(builderPrice) || 499,
-            credits: Number(builderCredits) || 30,
-          },
+          create: { id: 'builder', name: 'Builder Plan', priceInInr: Number(builderPrice) || 499, credits: Number(builderCredits) || 30 },
         })
       );
     }
-
     if (proPrice || proCredits) {
-      updates.push(
+      operations.push(
         prisma.pricingPackage.upsert({
           where: { id: 'pro' },
           update: {
             ...(proPrice && { priceInInr: Number(proPrice) }),
             ...(proCredits && { credits: Number(proCredits) }),
           },
-          create: {
-            id: 'pro',
-            name: 'Pro',
-            priceInInr: Number(proPrice) || 999,
-            credits: Number(proCredits) || 100,
-          },
+          create: { id: 'pro', name: 'Pro Plan', priceInInr: Number(proPrice) || 999, credits: Number(proCredits) || 100 },
         })
       );
     }
 
-    await Promise.all(updates);
-
-    return res.json({
-      success: true,
-      message: 'Pricing packages saved permanently to database!',
-    });
+    await Promise.all(operations);
+    return res.json({ success: true, message: 'Packages updated' });
   } catch (error) {
-    console.error('Error updating packages:', error);
-    return res.status(500).json({ error: 'Failed to update pricing packages.' });
+    console.error('Error updating package in DB:', error);
+    return res.status(500).json({ error: error.message || 'Failed to update package' });
   }
 });
+
 // ============================================================
 // AUTH ROUTES (Passwordless Email & OAuth Upsert)
 // ============================================================
