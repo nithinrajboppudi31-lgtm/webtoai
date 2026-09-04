@@ -280,6 +280,33 @@ app.get('/api/admin/payments', authenticate, async (req, res) => {
 });
 
 // Admin Update Pricing Packages Directly
+// 1. GET endpoint so frontend always gets latest database values
+app.get('/api/packages', async (req, res) => {
+  try {
+    const packages = await prisma.pricingPackage.findMany();
+    
+    // Default fallback if database is empty on first load
+    const packageMap = {
+      starter: { priceInInr: 199, credits: 10 },
+      builder: { priceInInr: 499, credits: 30 },
+      pro: { priceInInr: 999, credits: 100 },
+    };
+
+    packages.forEach((pkg) => {
+      packageMap[pkg.id] = {
+        priceInInr: pkg.priceInInr,
+        credits: pkg.credits,
+      };
+    });
+
+    return res.json({ packages: packageMap });
+  } catch (error) {
+    console.error('Error fetching packages:', error);
+    return res.status(500).json({ error: 'Failed to fetch packages.' });
+  }
+});
+
+// 2. POST endpoint: permanently updates the database
 app.post('/api/admin/packages/update', authenticate, async (req, res) => {
   try {
     if (req.user.role !== 'ADMIN') {
@@ -287,25 +314,73 @@ app.post('/api/admin/packages/update', authenticate, async (req, res) => {
     }
 
     const { starterPrice, starterCredits, builderPrice, builderCredits, proPrice, proCredits } = req.body;
+    const updates = [];
 
-    if (starterPrice) PACKAGES.starter.priceInInr = Number(starterPrice);
-    if (starterCredits) PACKAGES.starter.credits = Number(starterCredits);
-    if (builderPrice) PACKAGES.builder.priceInInr = Number(builderPrice);
-    if (builderCredits) PACKAGES.builder.credits = Number(builderCredits);
-    if (proPrice) PACKAGES.pro.priceInInr = Number(proPrice);
-    if (proCredits) PACKAGES.pro.credits = Number(proCredits);
+    if (starterPrice || starterCredits) {
+      updates.push(
+        prisma.pricingPackage.upsert({
+          where: { id: 'starter' },
+          update: {
+            ...(starterPrice && { priceInInr: Number(starterPrice) }),
+            ...(starterCredits && { credits: Number(starterCredits) }),
+          },
+          create: {
+            id: 'starter',
+            name: 'Starter',
+            priceInInr: Number(starterPrice) || 199,
+            credits: Number(starterCredits) || 10,
+          },
+        })
+      );
+    }
+
+    if (builderPrice || builderCredits) {
+      updates.push(
+        prisma.pricingPackage.upsert({
+          where: { id: 'builder' },
+          update: {
+            ...(builderPrice && { priceInInr: Number(builderPrice) }),
+            ...(builderCredits && { credits: Number(builderCredits) }),
+          },
+          create: {
+            id: 'builder',
+            name: 'Builder',
+            priceInInr: Number(builderPrice) || 499,
+            credits: Number(builderCredits) || 30,
+          },
+        })
+      );
+    }
+
+    if (proPrice || proCredits) {
+      updates.push(
+        prisma.pricingPackage.upsert({
+          where: { id: 'pro' },
+          update: {
+            ...(proPrice && { priceInInr: Number(proPrice) }),
+            ...(proCredits && { credits: Number(proCredits) }),
+          },
+          create: {
+            id: 'pro',
+            name: 'Pro',
+            priceInInr: Number(proPrice) || 999,
+            credits: Number(proCredits) || 100,
+          },
+        })
+      );
+    }
+
+    await Promise.all(updates);
 
     return res.json({
       success: true,
-      message: 'Pricing packages updated successfully!',
-      packages: PACKAGES,
+      message: 'Pricing packages saved permanently to database!',
     });
   } catch (error) {
     console.error('Error updating packages:', error);
     return res.status(500).json({ error: 'Failed to update pricing packages.' });
   }
 });
-
 // ============================================================
 // AUTH ROUTES (Passwordless Email & OAuth Upsert)
 // ============================================================
