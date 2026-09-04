@@ -236,3 +236,10 @@ model UsageHistory {
 
   @@index([userId])
 }
+model PricingPackage {
+  id          String   @id
+  name        String
+  priceInInr  Float
+  credits     Int
+  updatedAt   DateTime @updatedAt
+}
