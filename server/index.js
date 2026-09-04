@@ -1504,7 +1504,8 @@ app.get('/api/admin/dashboard-data', async (req, res) => {
 // START SERVER (Render Compatible 0.0.0.0 Binding)
 // ============================================================
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`WEBTO AI Backend  running on port ${PORT}`);
+// Remove 'const' so it reuses the existing PORT variable or defaults safely
+const portToUse = process.env.PORT || 5000;
+app.listen(portToUse, '0.0.0.0', () => {
+  console.log(`WEBTO AI Backend running on port ${portToUse}`);
 });
