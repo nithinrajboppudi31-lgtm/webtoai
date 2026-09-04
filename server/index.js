@@ -228,80 +228,6 @@ app.post('/api/admin/verify-otp', async (req, res) => {
 });
 
 // 1. Live Admin Dashboard Data Endpoint
-app.get('/api/admin/dashboard-data', async (req, res) => {
-  try {
-    const [totalUsers, totalProjects, users, payments] = await Promise.all([
-      prisma.user.count(),
-      prisma.project.count(),
-      prisma.user.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      }),
-      prisma.payment.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 20,
-      }),
-    ]);
-
-    let dbPackages = [];
-    try {
-      dbPackages = await prisma.pricingPackage.findMany();
-    } catch (e) {
-      console.warn('pricingPackage table fallback:', e.message);
-    }
-
-    const defaultPackages = [
-      { id: 'starter', name: 'Starter Plan', price: '₹199', priceVal: 199, credits: '10 Credits', creditsVal: 10 },
-      { id: 'builder', name: 'Builder Plan', price: '₹499', priceVal: 499, credits: '30 Credits', creditsVal: 30 },
-      { id: 'pro', name: 'Pro Plan', price: '₹999', priceVal: 999, credits: '100 Credits', creditsVal: 100 },
-    ];
-
-    const creditPackages = defaultPackages.map((def) => {
-      const found = dbPackages.find((p) => p.id === def.id);
-      if (found) {
-        return {
-          id: found.id,
-          name: found.name || def.name,
-          price: `₹${found.priceInInr}`,
-          priceVal: found.priceInInr,
-          credits: `${found.credits} Credits`,
-          creditsVal: found.credits,
-        };
-      }
-      return def;
-    });
-
-    const totalRevenueSum = payments
-      .filter((p) => p.status === 'SUCCESS')
-      .reduce((acc, curr) => acc + (curr.amount || 0), 0);
-
-    const totalCreditsSold = payments
-      .filter((p) => p.status === 'SUCCESS')
-      .reduce((acc, curr) => acc + (curr.credits || 0), 0);
-
-    return res.json({
-      stats: {
-        totalUsers,
-        totalProjects,
-        totalRevenue: `₹${totalRevenueSum.toLocaleString()}`,
-        creditsSold: totalCreditsSold,
-        activeDeployments: totalProjects,
-      },
-      users: users.map(formatSafeUser),
-      transactions: payments.map((tx) => ({
-        id: tx.id,
-        user: tx.userId ? tx.userId.slice(0, 8) : 'Anonymous',
-        amount: `₹${tx.amount}`,
-        status: tx.status === 'SUCCESS' ? 'Success' : 'Failed',
-        date: new Date(tx.createdAt).toLocaleDateString(),
-      })),
-      creditPackages,
-    });
-  } catch (error) {
-    console.error('Dashboard data error:', error);
-    return res.status(500).json({ error: error.message || 'Failed to fetch dashboard data' });
-  }
-});
 
 // 2. Persistent Package Update Endpoint
 app.post('/api/admin/packages/update', async (req, res) => {
@@ -1491,6 +1417,86 @@ app.post('/api/payments/verify', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Payment verification error:', error);
     return res.status(500).json({ error: 'Payment verification failed.' });
+  }
+});
+// Test Root
+app.get('/', (req, res) => {
+  res.send('WEBTO AI Backend is live with latest routes!');
+});
+
+// Live Admin Dashboard Data Endpoint
+app.get('/api/admin/dashboard-data', async (req, res) => {
+  try {
+    const [totalUsers, totalProjects, users, payments] = await Promise.all([
+      prisma.user.count(),
+      prisma.project.count(),
+      prisma.user.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }),
+      prisma.payment.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+    ]);
+
+    let dbPackages = [];
+    try {
+      dbPackages = await prisma.pricingPackage.findMany();
+    } catch (e) {
+      console.warn('pricingPackage fallback:', e.message);
+    }
+
+    const defaultPackages = [
+      { id: 'starter', name: 'Starter Plan', price: '₹199', priceVal: 199, credits: '10 Credits', creditsVal: 10 },
+      { id: 'builder', name: 'Builder Plan', price: '₹499', priceVal: 499, credits: '30 Credits', creditsVal: 30 },
+      { id: 'pro', name: 'Pro Plan', price: '₹999', priceVal: 999, credits: '100 Credits', creditsVal: 100 },
+    ];
+
+    const creditPackages = defaultPackages.map((def) => {
+      const found = dbPackages.find((p) => p.id === def.id);
+      if (found) {
+        return {
+          id: found.id,
+          name: found.name || def.name,
+          price: `₹${found.priceInInr}`,
+          priceVal: found.priceInInr,
+          credits: `${found.credits} Credits`,
+          creditsVal: found.credits,
+        };
+      }
+      return def;
+    });
+
+    const totalRevenueSum = payments
+      .filter((p) => p.status === 'SUCCESS')
+      .reduce((acc, curr) => acc + (curr.amount || 0), 0);
+
+    const totalCreditsSold = payments
+      .filter((p) => p.status === 'SUCCESS')
+      .reduce((acc, curr) => acc + (curr.credits || 0), 0);
+
+    return res.json({
+      stats: {
+        totalUsers,
+        totalProjects,
+        totalRevenue: `₹${totalRevenueSum.toLocaleString()}`,
+        creditsSold: totalCreditsSold,
+        activeDeployments: totalProjects,
+      },
+      users: users.map(formatSafeUser),
+      transactions: payments.map((tx) => ({
+        id: tx.id,
+        user: tx.userId ? tx.userId.slice(0, 8) : 'Anonymous',
+        amount: `₹${tx.amount}`,
+        status: tx.status === 'SUCCESS' ? 'Success' : 'Failed',
+        date: new Date(tx.createdAt).toLocaleDateString(),
+      })),
+      creditPackages,
+    });
+  } catch (error) {
+    console.error('Dashboard data error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch dashboard data' });
   }
 });
 
