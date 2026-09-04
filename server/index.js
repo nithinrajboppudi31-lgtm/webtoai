@@ -1506,5 +1506,5 @@ app.get('/api/admin/dashboard-data', async (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`WEBTO AI Backend 🌐 running on port ${PORT}`);
+  console.log(`WEBTO AI Backend  running on port ${PORT}`);
 });
