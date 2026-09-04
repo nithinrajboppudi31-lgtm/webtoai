@@ -232,69 +232,45 @@ app.post('/api/admin/verify-otp', async (req, res) => {
 // 2. Persistent Package Update Endpoint
 app.post('/api/admin/packages/update', async (req, res) => {
   try {
+    console.log('Received package update payload:', req.body);
     const { packageId, price, credits, name } = req.body;
+
     if (!packageId) {
       return res.status(400).json({ error: 'packageId is required' });
     }
 
     const cleanId = String(packageId).toLowerCase().trim();
-    const numPrice = Number(price);
-    const numCredits = Number(credits);
+    const numPrice = parseInt(price, 10);
+    const numCredits = parseInt(credits, 10);
 
+    if (isNaN(numPrice) || isNaN(numCredits)) {
+      return res.status(400).json({ error: 'Valid numeric price and credits required' });
+    }
+
+    // Try updating directly by matching ID
     const updated = await prisma.pricingPackage.upsert({
       where: { id: cleanId },
       update: {
-        ...(!isNaN(numPrice) && { priceInInr: numPrice }),
-        ...(!isNaN(numCredits) && { credits: numCredits }),
-        ...(name && { name: String(name) }),
+        priceInInr: numPrice,
+        credits: numCredits,
+        ...(name ? { name: String(name) } : {}),
       },
       create: {
         id: cleanId,
-        name: name || cleanId.toUpperCase(),
-        priceInInr: !isNaN(numPrice) ? numPrice : 0,
-        credits: !isNaN(numCredits) ? numCredits : 0,
+        name: name || (cleanId.charAt(0).toUpperCase() + cleanId.slice(1)),
+        priceInInr: numPrice,
+        credits: numCredits,
       },
     });
 
+    console.log('Successfully saved to DB:', updated);
     return res.json({ success: true, package: updated });
   } catch (error) {
-    console.error('Update package error:', error);
-    return res.status(500).json({ error: error.message || 'Failed to update package' });
+    console.error('Error updating pricingPackage in DB:', error);
+    return res.status(500).json({ error: error.message || 'Database update failed' });
   }
 });
 
-// Admin Dashboard Overview Stats & Users
-app.get('/api/admin/overview', authenticate, async (req, res) => {
-  try {
-    if (req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Admin access required.' });
-    }
-
-    const [totalUsers, totalProjects, users, payments] = await Promise.all([
-      prisma.user.count(),
-      prisma.project.count(),
-      prisma.user.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      }),
-      prisma.payment.findMany({
-        where: { status: 'SUCCESS' },
-      }),
-    ]);
-
-    const totalRevenue = payments.reduce((acc, curr) => acc + (curr.amount || 0), 0);
-
-    return res.json({
-      totalUsers,
-      totalProjects,
-      totalRevenue,
-      users: users.map(formatSafeUser),
-    });
-  } catch (error) {
-    console.error('Admin overview error:', error);
-    return res.status(500).json({ error: 'Failed to fetch admin overview.' });
-  }
-});
 
 // Admin Payments Ledger Query
 app.get('/api/admin/payments', authenticate, async (req, res) => {
