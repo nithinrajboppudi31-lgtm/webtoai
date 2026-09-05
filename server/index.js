@@ -803,6 +803,33 @@ app.patch('/api/projects/:id/visibility', authenticate, async (req, res) => {
     return res.status(500).json({ error: 'Failed to update visibility.' });
   }
 });
+// DELETE PROJECT ENDPOINT
+app.delete('/api/projects/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verify ownership
+    const project = await prisma.project.findFirst({
+      where: { id, userId: req.user.id },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found or unauthorized.' });
+    }
+
+    // Delete associated files first (cascading cleanup)
+    await prisma.projectFile.deleteMany({ where: { projectId: id } }).catch(() => {});
+    
+    // Delete project
+    await prisma.project.delete({ where: { id } });
+
+    return res.json({ success: true, message: 'Project deleted successfully.' });
+  } catch (err) {
+    console.error('Delete project error:', err);
+    return res.status(500).json({ error: 'Failed to delete project.' });
+  }
+});
+
 
 // Project SEO
 app.patch('/api/projects/:id/seo', authenticate, async (req, res) => {
