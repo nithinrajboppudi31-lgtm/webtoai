@@ -117,7 +117,6 @@ export default function Workspace() {
       setCurrentStageIndex(0);
       setLiveLogs(['[INIT] Connecting to WEBTO AI synthesis engine...', '[SYS] Initializing LLM context & schema validation...']);
 
-      // Smooth progress calculation with dynamic stepping
       progressInterval = setInterval(() => {
         setGenerateProgress((prev) => {
           if (prev >= 98) return 98;
@@ -137,7 +136,6 @@ export default function Workspace() {
         });
       }, 250);
 
-      // Stream realistic backend console logs
       logInterval = setInterval(() => {
         const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
         const possibleLogs = [
@@ -166,7 +164,6 @@ export default function Workspace() {
     };
   }, [generating]);
 
-  // Listen for clicks inside the iframe
   useEffect(() => {
     const handleInspectorMessage = (e) => {
       if (e.data && e.data.type === 'ELEMENT_SELECTED') {
@@ -562,16 +559,17 @@ ${targetedPrompt}
   };
 
   const handlePushToGithub = async (e) => {
-    e.preventDefault();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (!githubTokenInput.trim() || !githubRepoName.trim()) {
-      alert('Please provide your GitHub Token and a Repository Name.');
+      alert('GitHub token and repository name are required.');
       return;
     }
 
     setPushingGithub(true);
-    setPushedRepoUrl('');
     try {
-      localStorage.setItem('gh_token', githubTokenInput.trim());
       const authToken = token || localStorage.getItem('token');
       const res = await fetch(`${API_BASE}/api/github/push/${id}`, {
         method: 'POST',
@@ -586,196 +584,223 @@ ${targetedPrompt}
         }),
       });
 
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('GitHub integration service unavailable.');
-      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to push to GitHub');
+      if (!res.ok) throw new Error(data.error || 'Failed to export repository to GitHub.');
 
       setPushedRepoUrl(data.repoUrl);
+      localStorage.setItem('gh_token', githubTokenInput.trim());
     } catch (err) {
-      alert(`GitHub Error: ${err.message}`);
+      alert(`GitHub Export Error: ${err.message}`);
     } finally {
       setPushingGithub(false);
     }
   };
 
   const handleCopyCode = () => {
-    if (selectedFile?.content) {
-      navigator.clipboard.writeText(selectedFile.content);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const getAugmentedHtml = () => {
-    if (!entryHtml) return '';
-
-    const inspectorScript = `
-      <script>
-        (function() {
-          let selectedElement = null;
-          document.addEventListener('mouseover', function(e) {
-            if (${inspectorActive}) {
-              e.stopPropagation();
-              e.target.style.outline = '2px dashed #3b82f6';
-              e.target.style.cursor = 'crosshair';
-            }
-          }, true);
-
-          document.addEventListener('mouseout', function(e) {
-            if (${inspectorActive}) {
-              e.stopPropagation();
-              e.target.style.outline = '';
-            }
-          }, true);
-
-          document.addEventListener('click', function(e) {
-            if (${inspectorActive}) {
-              e.preventDefault();
-              e.stopPropagation();
-              selectedElement = e.target;
-              window.parent.postMessage({
-                type: 'ELEMENT_SELECTED',
-                payload: {
-                  tagName: selectedElement.tagName,
-                  outerHTML: selectedElement.outerHTML
-                }
-              }, '*');
-            }
-          }, true);
-        })();
-      </script>
-    `;
-
-    if (entryHtml.includes('</body>')) {
-      return entryHtml.replace('</body>', `${inspectorScript}</body>`);
-    }
-    return `${entryHtml}${inspectorScript}`;
+    const code = selectedFile ? selectedFile.content : entryHtml;
+    if (!code) return;
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="min-h-screen bg-[#070b14] text-slate-100 flex flex-col font-sans">
-      {/* Top Workspace Navigation Bar */}
-      <header className="h-14 border-b border-slate-800 bg-[#0b1324] px-4 flex items-center justify-between z-10">
+    <div className="flex flex-col h-screen bg-[#070b14] text-slate-100 overflow-hidden font-sans">
+      {/* Top Navbar */}
+      <header className="h-14 border-b border-slate-800/80 px-4 flex items-center justify-between bg-[#0b1324] shrink-0">
         <div className="flex items-center gap-3">
           <button
-            type="button"
             onClick={() => navigate('/dashboard')}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition cursor-pointer"
-            title="Back to Dashboard"
+            className="text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
           >
-            ←
+            &larr; Dashboard
           </button>
-          <span className="font-semibold text-xs tracking-wide text-white truncate max-w-[200px] sm:max-w-xs">
-            {project?.name || 'Application Builder'}
+          <span className="text-sm font-semibold text-white tracking-wide">
+            {project?.name || 'Workspace Canvas'}
           </span>
-          <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase font-mono">
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-950/80 text-blue-400 border border-blue-800/40">
             {project?.type || 'FULL_STACK'}
           </span>
         </div>
 
-        {/* Viewport, Inspector & Action Buttons */}
+        {/* Viewport, Visibility & Action Controls */}
         <div className="flex items-center gap-2">
-          <div className="hidden sm:flex bg-slate-900 border border-slate-800 rounded-lg p-0.5">
+          {/* Viewport Switchers */}
+          <div className="hidden sm:flex items-center bg-slate-900 border border-slate-800 rounded p-0.5 text-xs">
             <button
-              type="button"
               onClick={() => setDeviceViewport('desktop')}
-              className={`px-2.5 py-1 rounded text-xs transition ${
-                deviceViewport === 'desktop' ? 'bg-blue-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className={`px-2 py-1 rounded ${deviceViewport === 'desktop' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
             >
               Desktop
             </button>
             <button
-              type="button"
               onClick={() => setDeviceViewport('tablet')}
-              className={`px-2.5 py-1 rounded text-xs transition ${
-                deviceViewport === 'tablet' ? 'bg-blue-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className={`px-2 py-1 rounded ${deviceViewport === 'tablet' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
             >
               Tablet
             </button>
             <button
-              type="button"
               onClick={() => setDeviceViewport('mobile')}
-              className={`px-2.5 py-1 rounded text-xs transition ${
-                deviceViewport === 'mobile' ? 'bg-blue-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className={`px-2 py-1 rounded ${deviceViewport === 'mobile' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
             >
               Mobile
             </button>
           </div>
 
           <button
-            type="button"
-            onClick={() => setInspectorActive(!inspectorActive)}
-            className={`px-2.5 py-1.5 rounded-lg border text-xs transition flex items-center gap-1.5 ${
-              inspectorActive
-                ? 'bg-blue-600/20 border-blue-500 text-blue-300'
-                : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+            onClick={handleToggleVisibility}
+            disabled={updatingVisibility}
+            className={`text-xs px-2.5 py-1 rounded border transition ${
+              isPublicProject
+                ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300 hover:bg-emerald-900/60'
+                : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
             }`}
           >
-            <span>Inspector</span>
+            {updatingVisibility ? 'Updating...' : isPublicProject ? 'Public' : 'Private'}
           </button>
 
           <button
-            type="button"
-            onClick={() => openRequirementChat(project)}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 transition cursor-pointer"
-          >
-            Chat
-          </button>
-
-          <button
-            type="button"
             onClick={() => setShowSeoModal(true)}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 transition cursor-pointer"
+            className="text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
           >
-            Settings
+            SEO / Slug
           </button>
 
           <button
-            type="button"
             onClick={() => setShowGithubModal(true)}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer"
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
           >
             <GithubIcon className="w-3.5 h-3.5" />
             <span>GitHub</span>
           </button>
 
           <button
-            type="button"
             onClick={handleDownloadZip}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 transition cursor-pointer"
-            title="Download ZIP Archive"
+            className="text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
           >
             Export ZIP
           </button>
 
+          {/* DEPLOY BUTTON */}
           <button
             type="button"
-            disabled={deploying}
-            onClick={handleDeploy}
-            className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-600/20 disabled:opacity-50 cursor-pointer"
+            onClick={(e) => handleDeploy(e)}
+            disabled={deploying || !entryHtml}
+            className="text-xs font-medium px-3.5 py-1.5 rounded bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-sm disabled:opacity-50 transition"
           >
-            <span>{deploying ? 'Deploying...' : 'Deploy'}</span>
+            {deploying ? 'Deploying...' : 'Deploy'}
           </button>
         </div>
       </header>
 
-      {/* Main Workspace Frame */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
-        <main className="flex-1 flex flex-col bg-[#050811] relative overflow-hidden">
-          {/* Sub Navigation */}
-          <div className="h-10 border-b border-slate-800/80 bg-[#080d1a] px-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+      {/* Main Workspace Split */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left Side: Generation Control Panel */}
+        <aside className="w-80 border-r border-slate-800 bg-[#090f1d] flex flex-col p-4 shrink-0 overflow-y-auto">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Prompt Studio</span>
+            <button
+              onClick={() => openRequirementChat(project)}
+              className="text-xs px-2 py-0.5 rounded bg-blue-900/60 hover:bg-blue-800/80 text-blue-300 border border-blue-700/50 transition"
+            >
+              Requirements Chat
+            </button>
+          </div>
+
+          <div className="relative mb-2">
+            <textarea
+              value={promptInput}
+              onChange={(e) => setPromptInput(e.target.value)}
+              placeholder="Describe pages, features, interactions, or state to build..."
+              rows={5}
+              className="w-full bg-[#0d1627] border border-slate-700 rounded-lg p-3 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none"
+            />
+            <button
+              type="button"
+              onClick={handleVoiceInput}
+              className={`absolute bottom-2.5 right-2.5 p-1.5 rounded-full ${
+                isListening ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              🎤
+            </button>
+          </div>
+
+          {/* Image / Mockup Preview */}
+          {imagePreview && (
+            <div className="relative mb-3 rounded-lg overflow-hidden border border-slate-700 max-h-32 bg-slate-900">
+              <img src={imagePreview} alt="Mockup" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                className="absolute top-1 right-1 bg-black/70 hover:bg-black text-white rounded-full p-1 text-[10px]"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 mb-4">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageSelect}
+              accept="image/*"
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex-1 py-1.5 px-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded text-[11px] text-slate-300 transition text-center"
+            >
+              📷 Attach Wireframe
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => handleGenerate()}
+            disabled={generating || (!promptInput.trim() && !selectedImage)}
+            className="w-full py-2 px-4 rounded-lg font-medium text-xs bg-blue-600 hover:bg-blue-500 text-white shadow transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {generating ? 'Synthesizing Application...' : 'Generate / Update Code'}
+          </button>
+
+          {/* Live Generation Pipeline Progress */}
+          {generating && (
+            <div className="mt-4 p-3 rounded-lg bg-[#0e1627] border border-blue-900/50">
+              <div className="flex items-center justify-between text-[11px] mb-1.5">
+                <span className="text-blue-400 font-medium">Stage {GENERATION_STAGES[currentStageIndex]?.stage}</span>
+                <span className="text-slate-400 font-mono">{generateProgress}%</span>
+              </div>
+              <div className="w-full bg-slate-800 rounded-full h-1.5 mb-2 overflow-hidden">
+                <div
+                  className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+                  style={{ width: `${generateProgress}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-slate-300 font-medium mb-1">
+                {GENERATION_STAGES[currentStageIndex]?.title}
+              </p>
+              <div className="bg-black/40 rounded p-2 text-[10px] font-mono text-slate-400 space-y-0.5 max-h-24 overflow-y-auto">
+                {liveLogs.map((log, i) => (
+                  <div key={i} className="truncate">{log}</div>
+                ))}
+              </div>
+            </div>
+          )}
+        </aside>
+
+        {/* Right Side: Tab Switcher & Sandbox Preview */}
+        <main className="flex-1 flex flex-col bg-[#0b101d] overflow-hidden">
+          {/* Top Canvas Tabs */}
+          <div className="h-10 border-b border-slate-800/90 px-4 flex items-center justify-between bg-[#080d19] shrink-0">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setActiveTab('preview')}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition ${
-                  activeTab === 'preview' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
+                className={`text-xs px-3 py-1 rounded font-medium transition ${
+                  activeTab === 'preview' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-slate-400 hover:text-white'
                 }`}
               >
                 Live Preview
@@ -783,11 +808,11 @@ ${targetedPrompt}
               <button
                 type="button"
                 onClick={() => setActiveTab('code')}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition ${
-                  activeTab === 'code' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
+                className={`text-xs px-3 py-1 rounded font-medium transition ${
+                  activeTab === 'code' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Code Editor
+                Code Editor ({files.length || (entryHtml ? 1 : 0)} files)
               </button>
             </div>
 
@@ -795,487 +820,208 @@ ${targetedPrompt}
               <button
                 type="button"
                 onClick={handleCopyCode}
-                className="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                className="text-xs px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
               >
-                {copied ? 'Copied!' : 'Copy File'}
+                {copied ? 'Copied!' : 'Copy Code'}
               </button>
             )}
           </div>
 
-          {/* Inspector Component Editor Overlay */}
-          {inspectorActive && selectedElementInfo && (
-            <div className="p-2.5 bg-blue-950/80 border-b border-blue-500/40 flex items-center justify-between gap-3 text-xs z-10">
-              <div className="flex items-center gap-2 truncate">
-                <span className="px-2 py-0.5 rounded bg-blue-600 text-white font-mono text-[10px] uppercase">
-                  {selectedElementInfo.tagName}
-                </span>
-                <span className="text-blue-200 truncate max-w-sm hidden sm:inline">
-                  {selectedElementInfo.outerHTML.slice(0, 70)}...
-                </span>
-              </div>
-
-              <form onSubmit={handleTargetedElementEdit} className="flex items-center gap-2 flex-1 max-w-md">
-                <input
-                  type="text"
-                  value={targetedPrompt}
-                  onChange={(e) => setTargetedPrompt(e.target.value)}
-                  placeholder="Modify this selected element..."
-                  className="flex-1 px-3 py-1 text-xs bg-slate-900 text-white border border-blue-500/40 rounded-lg focus:outline-none focus:border-blue-400"
-                />
-                <button
-                  type="submit"
-                  disabled={generating}
-                  className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs cursor-pointer disabled:opacity-50"
-                >
-                  Apply
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedElementInfo(null)}
-                  className="p-1 text-slate-400 hover:text-white cursor-pointer"
-                >
-                  ✕
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* Tab Views */}
-          <div className="flex-1 flex items-center justify-center p-2 relative overflow-auto bg-[#04060b]">
+          {/* Canvas Display Body */}
+          <div className="flex-1 overflow-hidden relative flex justify-center items-center p-2 bg-[#050811]">
             {activeTab === 'preview' ? (
               <div
-                className={`h-full bg-white rounded-xl shadow-2xl transition-all duration-300 overflow-hidden relative ${
-                  deviceViewport === 'desktop'
-                    ? 'w-full'
+                className={`h-full transition-all duration-300 shadow-2xl rounded-lg overflow-hidden border border-slate-800 bg-white ${
+                  deviceViewport === 'mobile'
+                    ? 'w-[375px]'
                     : deviceViewport === 'tablet'
-                    ? 'w-[768px] max-w-full'
-                    : 'w-[375px] max-w-full'
+                    ? 'w-[768px]'
+                    : 'w-full'
                 }`}
               >
-                {/* Generation Engine Active State in Middle Box */}
-                {generating ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-[#070d19] text-slate-200 p-6 relative">
-                    <div className="max-w-md w-full flex flex-col items-center text-center">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center mb-4">
-                        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                      </div>
-
-                      <div className="text-sm font-semibold text-white mb-1">
-                        {GENERATION_STAGES[currentStageIndex]?.title || 'Synthesizing Application...'}
-                      </div>
-                      <div className="text-xs text-blue-400 font-mono mb-4">
-                        Stage {GENERATION_STAGES[currentStageIndex]?.stage || '1/4'} • {generateProgress}%
-                      </div>
-
-                      {/* Progress bar */}
-                      <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mb-6">
-                        <div
-                          className="bg-blue-500 h-full rounded-full transition-all duration-300"
-                          style={{ width: `${generateProgress}%` }}
-                        />
-                      </div>
-
-                      {/* Real-time backend synthesis logs */}
-                      <div className="w-full bg-[#050914] border border-slate-800 rounded-xl p-3 text-left font-mono text-[11px] text-slate-400 h-32 overflow-hidden flex flex-col justify-end shadow-inner">
-                        {liveLogs.map((log, idx) => (
-                          <div key={idx} className="truncate text-slate-400 py-0.5">
-                            {log}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : entryHtml ? (
+                {entryHtml ? (
                   <iframe
                     key={iframeKey}
                     ref={iframeRef}
-                    title="Live Preview"
-                    srcDoc={getAugmentedHtml()}
-                    sandbox="allow-scripts allow-same-origin allow-modals"
+                    title="Rendered App Preview"
+                    srcDoc={entryHtml}
+                    sandbox="allow-scripts allow-same-origin allow-modals allow-forms"
                     className="w-full h-full border-0"
                   />
                 ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-[#070d19] text-slate-400 p-6 text-center">
-                    <p className="text-sm mb-1 font-semibold text-slate-300">Canvas is empty</p>
-                    <p className="text-xs text-slate-500">
-                      Enter a prompt below and start building your interactive web application.
-                    </p>
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-[#0d1527] text-slate-400">
+                    <p className="text-sm">No preview generated yet.</p>
+                    <p className="text-xs text-slate-500 mt-1">Enter requirements and click "Generate / Update Code".</p>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="w-full h-full flex bg-[#0c1322] rounded-xl border border-slate-800 overflow-hidden">
-                {/* File Tree */}
-                <div className="w-48 border-r border-slate-800 bg-[#080e1a] p-2 overflow-y-auto">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 px-2 py-1 mb-1">
-                    Project Files
-                  </div>
-                  {files && files.length > 0 ? (
-                    files.map((file, idx) => (
+              <div className="w-full h-full flex bg-[#0d1627] rounded-lg overflow-hidden border border-slate-800">
+                {/* File Tree List */}
+                <div className="w-48 border-r border-slate-800 bg-[#09101f] p-2 overflow-y-auto">
+                  <div className="text-[11px] font-semibold text-slate-400 px-2 py-1 uppercase">Files</div>
+                  {files.length > 0 ? (
+                    files.map((f, i) => (
                       <button
-                        key={idx}
+                        key={i}
                         type="button"
-                        onClick={() => setSelectedFile(file)}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono truncate transition cursor-pointer ${
-                          selectedFile?.name === file.name
-                            ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
-                            : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                        onClick={() => setSelectedFile(f)}
+                        className={`w-full text-left px-2 py-1.5 rounded text-xs truncate transition ${
+                          selectedFile?.name === f.name ? 'bg-blue-600/30 text-blue-400' : 'text-slate-400 hover:text-white'
                         }`}
                       >
-                        {file.name}
+                        📄 {f.name}
                       </button>
                     ))
                   ) : (
-                    <div className="text-xs text-slate-500 px-2 py-1">No files generated yet</div>
+                    <button
+                      type="button"
+                      className="w-full text-left px-2 py-1.5 rounded text-xs text-blue-400 bg-blue-600/20 truncate"
+                    >
+                      📄 index.html
+                    </button>
                   )}
                 </div>
 
-                {/* File Code Viewer */}
-                <div className="flex-1 p-3 overflow-auto bg-[#070b14]">
-                  <pre className="font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
-                    {selectedFile?.content || entryHtml || '// Source code will appear here'}
+                {/* Editor Content Area */}
+                <div className="flex-1 p-4 overflow-auto">
+                  <pre className="text-xs font-mono text-slate-200 leading-relaxed whitespace-pre">
+                    {selectedFile ? selectedFile.content : entryHtml}
                   </pre>
                 </div>
               </div>
             )}
           </div>
-
-          {/* AI Generator Bottom Bar */}
-          <div className="p-3 bg-[#080d1c] border-t border-slate-800/80">
-            {imagePreview && (
-              <div className="mb-2 flex items-center gap-2 p-1.5 bg-slate-900 border border-slate-700 rounded-lg w-fit">
-                <img src={imagePreview} alt="Mockup" className="w-8 h-8 rounded object-cover" />
-                <span className="text-xs text-slate-300">Image attached</span>
-                <button
-                  type="button"
-                  onClick={handleRemoveImage}
-                  className="p-1 hover:text-red-400 text-slate-400 cursor-pointer"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleGenerate();
-              }}
-              className="flex items-center gap-2"
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImageSelect}
-                accept="image/*"
-                className="hidden"
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="p-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-400 hover:text-white transition cursor-pointer text-xs"
-                title="Attach UI Mockup"
-              >
-                Img
-              </button>
-
-              <button
-                type="button"
-                onClick={handleVoiceInput}
-                className={`p-2 rounded-lg border text-xs transition cursor-pointer ${
-                  isListening
-                    ? 'bg-rose-600/20 border-rose-500 text-rose-400 animate-pulse'
-                    : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
-                }`}
-                title="Voice Input"
-              >
-                {isListening ? 'Stop' : 'Mic'}
-              </button>
-
-              <input
-                type="text"
-                value={promptInput}
-                onChange={(e) => setPromptInput(e.target.value)}
-                placeholder="Describe additions or revisions (e.g., 'Make the header sticky and add a contact modal')..."
-                className="flex-1 bg-slate-900 border border-slate-700/80 rounded-xl px-4 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
-              />
-              <button
-                type="submit"
-                disabled={generating}
-                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold rounded-xl transition shadow-md shadow-blue-600/20 disabled:opacity-50 cursor-pointer"
-              >
-                {generating ? 'Building...' : 'Update Project'}
-              </button>
-            </form>
-          </div>
         </main>
       </div>
 
-      {/* GitHub Export Modal */}
-      {showGithubModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#0c1322] border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-2 font-bold text-white text-sm">
-                <GithubIcon className="w-4 h-4" />
-                <span>Export to GitHub</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowGithubModal(false)}
-                className="text-slate-400 hover:text-white cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            {pushedRepoUrl ? (
-              <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl mb-3 text-center text-xs">
-                <p className="text-green-400 font-semibold mb-1">Repository Created!</p>
-                <a
-                  href={pushedRepoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:underline font-mono"
-                >
-                  {pushedRepoUrl}
-                </a>
-              </div>
-            ) : (
-              <form onSubmit={handlePushToGithub} className="space-y-3 text-xs">
-                <div>
-                  <label className="block text-slate-400 mb-1">GitHub Personal Access Token</label>
-                  <input
-                    type="password"
-                    required
-                    value={githubTokenInput}
-                    onChange={(e) => setGithubTokenInput(e.target.value)}
-                    placeholder="ghp_xxxxxxxxxxxx"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 mb-1">Repository Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={githubRepoName}
-                    onChange={(e) => setGithubRepoName(e.target.value)}
-                    placeholder="my-cool-ai-app"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <input
-                    type="checkbox"
-                    id="ghPrivate"
-                    checked={githubPrivate}
-                    onChange={(e) => setGithubPrivate(e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0"
-                  />
-                  <label htmlFor="ghPrivate" className="text-slate-300 select-none">Private Repository</label>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={pushingGithub}
-                  className="w-full mt-2 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition disabled:opacity-50 cursor-pointer"
-                >
-                  {pushingGithub ? 'Pushing Repository...' : 'Create & Push'}
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* SEO & Settings Modal */}
+      {/* SEO Modal */}
       {showSeoModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#0c1322] border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <span className="font-bold text-white text-sm">Project Settings</span>
-              <button
-                type="button"
-                onClick={() => setShowSeoModal(false)}
-                className="text-slate-400 hover:text-white cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="mb-4 pb-4 border-b border-slate-800 flex items-center justify-between">
-              <div>
-                <span className="block text-xs font-semibold text-white">Public Visibility</span>
-                <span className="text-[11px] text-slate-400">Share project preview publicly</span>
-              </div>
-              <button
-                type="button"
-                disabled={updatingVisibility}
-                onClick={handleToggleVisibility}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  isPublicProject ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-300'
-                }`}
-              >
-                {updatingVisibility ? 'Saving...' : isPublicProject ? 'Public' : 'Private'}
-              </button>
-            </div>
-
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0e172a] border border-slate-700 rounded-xl max-w-md w-full p-5 shadow-2xl">
+            <h3 className="text-sm font-semibold text-white mb-3">Project SEO & Slug</h3>
             <form onSubmit={handleSaveSeo} className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-400 mb-1">Title</label>
+                <label className="block text-slate-400 mb-1">Project Title</label>
                 <input
                   type="text"
                   value={seoTitle}
                   onChange={(e) => setSeoTitle(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-[#1e293b] border border-slate-700 rounded p-2 text-white"
                 />
               </div>
-
               <div>
-                <label className="block text-slate-400 mb-1">Slug</label>
+                <label className="block text-slate-400 mb-1">Vanity Slug</label>
                 <input
                   type="text"
                   value={seoSlug}
                   onChange={(e) => setSeoSlug(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-[#1e293b] border border-slate-700 rounded p-2 text-white"
                 />
               </div>
-
               <div>
                 <label className="block text-slate-400 mb-1">Description</label>
                 <textarea
-                  rows={2}
                   value={seoDescription}
                   onChange={(e) => setSeoDescription(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  rows={2}
+                  className="w-full bg-[#1e293b] border border-slate-700 rounded p-2 text-white"
                 />
               </div>
-
-              <button
-                type="submit"
-                disabled={savingSeo}
-                className="w-full mt-2 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition disabled:opacity-50 cursor-pointer"
-              >
-                {savingSeo ? 'Saving...' : 'Save Settings'}
-              </button>
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowSeoModal(false)}
+                  className="px-3 py-1.5 rounded bg-slate-800 text-slate-300 hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingSeo}
+                  className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium"
+                >
+                  {savingSeo ? 'Saving...' : 'Save Settings'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Chat Modal */}
-      {showChatModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#0c1322] border border-slate-800 rounded-2xl max-w-lg w-full h-[500px] flex flex-col shadow-2xl overflow-hidden">
-            <div className="p-3.5 border-b border-slate-800 flex justify-between items-center bg-[#090f1d]">
-              <span className="font-bold text-xs text-white">Project Planner Chat</span>
-              <button
-                type="button"
-                onClick={() => setShowChatModal(false)}
-                className="text-slate-400 hover:text-white cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="flex-1 p-3 overflow-y-auto space-y-2.5">
-              {chatMessages.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+      {/* GitHub Export Modal */}
+      {showGithubModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0e172a] border border-slate-700 rounded-xl max-w-md w-full p-5 shadow-2xl text-xs">
+            <h3 className="text-sm font-semibold text-white mb-3">Push to GitHub Repository</h3>
+            {pushedRepoUrl ? (
+              <div className="text-center py-4">
+                <p className="text-emerald-400 font-medium mb-2">Repository created successfully!</p>
+                <a
+                  href={pushedRepoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-400 underline font-mono break-all"
                 >
-                  <div
-                    className={`max-w-[80%] rounded-xl p-2.5 text-xs leading-relaxed ${
-                      msg.role === 'user'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-900 border border-slate-800 text-slate-200'
-                    }`}
-                  >
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
-              <div ref={chatEndRef} />
-            </div>
-
-            {chatChips.length > 0 && (
-              <div className="px-3 py-2 bg-slate-900/60 border-t border-slate-800 flex gap-1.5 overflow-x-auto">
-                {chatChips.map((chip, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSendChatMessage(chip)}
-                    className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] whitespace-nowrap transition cursor-pointer"
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="p-2.5 border-t border-slate-800 bg-[#090f1d] flex flex-col gap-2">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendChatMessage();
-                }}
-                className="flex items-center gap-2"
-              >
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ask for recommendations..."
-                  className="flex-1 bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
-                />
+                  {pushedRepoUrl}
+                </a>
                 <button
-                  type="submit"
-                  disabled={chatLoading}
-                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold disabled:opacity-50 cursor-pointer"
+                  type="button"
+                  onClick={() => { setPushedRepoUrl(''); setShowGithubModal(false); }}
+                  className="block mx-auto mt-4 px-4 py-1.5 bg-slate-800 text-white rounded"
                 >
-                  Send
+                  Close
                 </button>
+              </div>
+            ) : (
+              <form onSubmit={handlePushToGithub} className="space-y-3">
+                <div>
+                  <label className="block text-slate-400 mb-1">GitHub Personal Access Token</label>
+                  <input
+                    type="password"
+                    value={githubTokenInput}
+                    onChange={(e) => setGithubTokenInput(e.target.value)}
+                    placeholder="ghp_xxxxxxxxxxxx"
+                    className="w-full bg-[#1e293b] border border-slate-700 rounded p-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">Repository Name</label>
+                  <input
+                    type="text"
+                    value={githubRepoName}
+                    onChange={(e) => setGithubRepoName(e.target.value)}
+                    placeholder="my-cool-webapp"
+                    className="w-full bg-[#1e293b] border border-slate-700 rounded p-2 text-white"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="isPriv"
+                    checked={githubPrivate}
+                    onChange={(e) => setGithubPrivate(e.target.checked)}
+                  />
+                  <label htmlFor="isPriv" className="text-slate-300">Make repository private</label>
+                </div>
+                <div className="flex justify-end gap-2 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowGithubModal(false)}
+                    className="px-3 py-1.5 rounded bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={pushingGithub}
+                    className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium"
+                  >
+                    {pushingGithub ? 'Pushing Repository...' : 'Create & Push'}
+                  </button>
+                </div>
               </form>
-
-              <button
-                type="button"
-                onClick={handleApplyChatChanges}
-                className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition cursor-pointer"
-              >
-                Apply Plan & Generate Code
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Credit Limit / Upgrade Modal */}
-      {showUpgradeModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#0c1322] border border-slate-800 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl">
-            <h3 className="text-sm font-bold text-white mb-1">Free Limit Reached</h3>
-            <p className="text-xs text-slate-400 mb-4">
-              You have utilized your free generation credits.
-            </p>
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => navigate('/dashboard')}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition cursor-pointer"
-              >
-                Go to Dashboard
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowUpgradeModal(false)}
-                className="w-full py-1.5 bg-slate-900 text-slate-300 text-xs rounded-lg transition cursor-pointer"
-              >
-                Dismiss
-              </button>
-            </div>
+            )}
           </div>
         </div>
       )}
