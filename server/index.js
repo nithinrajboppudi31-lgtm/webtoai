@@ -616,6 +616,48 @@ app.post('/api/auth/google', async (req, res) => {
 // 7. PROJECT DATA & GENERATION
 // ============================================================
 // CREATE NEW PROJECT (Fixes 404 on "Start Building")
+// ============================================================
+// 7. PROJECT DATA & GENERATION
+// ============================================================
+
+// GET ALL USER PROJECTS (Fixes projects not showing on the projects page)
+app.get('/api/projects', authenticate, async (req, res) => {
+  try {
+    const projects = await prisma.project.findMany({
+      where: { userId: req.user.id },
+      orderBy: { updatedAt: 'desc' },
+      include: { files: true },
+    });
+    return res.json({ success: true, projects });
+  } catch (err) {
+    console.error('List projects error:', err);
+    return res.status(500).json({ error: 'Failed to fetch user projects.' });
+  }
+});
+
+// PUBLIC PREVIEW FETCH (Allows deployed preview to load without auth redirect)
+app.get('/api/public/preview/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const project = await prisma.project.findFirst({
+      where: {
+        OR: [{ id }, { slug: id }],
+      },
+      include: { files: true },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Deployed project not found.' });
+    }
+
+    return res.json({ success: true, project });
+  } catch (err) {
+    console.error('Public preview error:', err);
+    return res.status(500).json({ error: 'Failed to load preview.' });
+  }
+});
+
+// CREATE NEW PROJECT (Fixes 404 on "Start Building")
 app.post('/api/projects', authenticate, async (req, res) => {
   try {
     const { name, type, prompt } = req.body;
@@ -664,7 +706,6 @@ app.get('/api/projects/:id', authenticate, async (req, res) => {
     return res.status(500).json({ error: 'Failed to retrieve project.' });
   }
 });
-
 
 app.post('/api/generate/:id', authenticate, async (req, res) => {
   try {
