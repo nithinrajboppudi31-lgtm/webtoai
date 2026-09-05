@@ -46,6 +46,9 @@ export default function Workspace() {
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [customApiKey, setCustomApiKey] = useState(localStorage.getItem('user_gemini_key') || '');
 
+  // WEBTO AI Custom Branded Error Popup State
+  const [errorModal, setErrorModal] = useState({ open: false, title: '', message: '' });
+
   // Mobile Bottom Drawer & Actions
   const [mobilePromptOpen, setMobilePromptOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -207,7 +210,11 @@ export default function Workspace() {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Please upload a valid image file (PNG, JPG, WEBP, etc.)');
+      setErrorModal({
+        open: true,
+        title: 'Unsupported File Format',
+        message: 'Please upload a valid image file (PNG, JPG, WEBP, etc.) to use as a wireframe.'
+      });
       return;
     }
 
@@ -245,7 +252,11 @@ export default function Workspace() {
       if (!res.ok) throw new Error(data.error || 'Failed to update visibility');
       setIsPublicProject(data.isPublic);
     } catch (err) {
-      alert(`Visibility Error: ${err.message}`);
+      setErrorModal({
+        open: true,
+        title: 'Visibility Setting Failed',
+        message: err.message || 'Unable to update project visibility.'
+      });
     } finally {
       setUpdatingVisibility(false);
     }
@@ -279,7 +290,11 @@ export default function Workspace() {
       }
       setShowSeoModal(false);
     } catch (err) {
-      alert(`SEO Error: ${err.message}`);
+      setErrorModal({
+        open: true,
+        title: 'SEO Settings Error',
+        message: err.message || 'Failed to update SEO settings.'
+      });
     } finally {
       setSavingSeo(false);
     }
@@ -288,7 +303,11 @@ export default function Workspace() {
   const handleVoiceInput = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert('Voice dictation not supported in this browser. Use Chrome or Edge.');
+      setErrorModal({
+        open: true,
+        title: 'Voice Input Unsupported',
+        message: 'Speech recognition is not supported in this browser. Please use Chrome or Edge.'
+      });
       return;
     }
 
@@ -455,7 +474,11 @@ export default function Workspace() {
       handleRemoveImage();
     } catch (err) {
       console.error('Generation Error:', err);
-      alert(`AI Generation Error: ${err.message}`);
+      setErrorModal({
+        open: true,
+        title: 'Synthesis Interrupted',
+        message: 'The synthesis engine encountered a temporary timeout or token limit on this complex prompt. Tap "Try Again" to re-run synthesis with optimized parameters.'
+      });
     } finally {
       setTimeout(() => {
         setGenerating(false);
@@ -470,7 +493,11 @@ export default function Workspace() {
     }
 
     if (!entryHtml) {
-      alert('Please generate the project code first before deploying!');
+      setErrorModal({
+        open: true,
+        title: 'Application Not Ready',
+        message: 'Please generate your project code first before deploying to live production.'
+      });
       return;
     }
 
@@ -494,10 +521,18 @@ export default function Workspace() {
       const opened = window.open(targetUrl, '_blank', 'noopener,noreferrer');
       if (!opened) {
         navigator.clipboard?.writeText(targetUrl);
-        alert(`🚀 Application Live!\nURL copied to clipboard:\n${targetUrl}`);
+        setErrorModal({
+          open: true,
+          title: '🚀 Application Live!',
+          message: `Your app has been published successfully! The URL has been copied to your clipboard:\n${targetUrl}`
+        });
       }
     } catch (err) {
-      alert(`Deployment Error: ${err.message}`);
+      setErrorModal({
+        open: true,
+        title: 'Deployment Error',
+        message: err.message || 'Deployment could not be finalized. Please retry in a few moments.'
+      });
     } finally {
       setDeploying(false);
     }
@@ -505,7 +540,11 @@ export default function Workspace() {
 
   const handleDownloadZip = async () => {
     if (!entryHtml && (!files || files.length === 0)) {
-      alert('No code available to export!');
+      setErrorModal({
+        open: true,
+        title: 'Export Unavailable',
+        message: 'No code is available to export. Generate an application first.'
+      });
       return;
     }
 
@@ -533,7 +572,11 @@ export default function Workspace() {
       saveAs(blob, `${project?.name || 'project'}-source.zip`);
     } catch (err) {
       console.error('Export error:', err);
-      alert('Failed to generate project ZIP.');
+      setErrorModal({
+        open: true,
+        title: 'Export Error',
+        message: 'Failed to package project files into ZIP.'
+      });
     }
   };
 
@@ -543,7 +586,11 @@ export default function Workspace() {
       e.stopPropagation();
     }
     if (!githubTokenInput.trim() || !githubRepoName.trim()) {
-      alert('GitHub token and repository name are required.');
+      setErrorModal({
+        open: true,
+        title: 'GitHub Information Required',
+        message: 'Please provide both your GitHub Personal Access Token and a repository name.'
+      });
       return;
     }
 
@@ -569,7 +616,11 @@ export default function Workspace() {
       setPushedRepoUrl(data.repoUrl);
       localStorage.setItem('gh_token', githubTokenInput.trim());
     } catch (err) {
-      alert(`GitHub Export Error: ${err.message}`);
+      setErrorModal({
+        open: true,
+        title: 'GitHub Export Error',
+        message: err.message || 'Failed to push repository to GitHub.'
+      });
     } finally {
       setPushingGithub(false);
     }
@@ -1420,6 +1471,44 @@ export default function Workspace() {
                 className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium"
               >
                 Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WEBTO AI BRANDED ERROR & RETRY MODAL */}
+      {errorModal.open && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-[#0b1220] border border-blue-500/30 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center space-y-4">
+            <div className="w-12 h-12 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center mx-auto text-xl font-bold shadow-lg shadow-blue-500/10">
+              ✨
+            </div>
+            
+            <div>
+              <h3 className="text-sm font-bold text-white tracking-wide">{errorModal.title}</h3>
+              <p className="text-xs text-slate-400 leading-relaxed mt-1">
+                {errorModal.message}
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setErrorModal({ open: false, title: '', message: '' })}
+                className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition"
+              >
+                Dismiss
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorModal({ open: false, title: '', message: '' });
+                  handleGenerate();
+                }}
+                className="flex-1 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-md transition"
+              >
+                Try Again
               </button>
             </div>
           </div>
