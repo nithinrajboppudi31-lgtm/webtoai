@@ -42,6 +42,10 @@ export default function Workspace() {
   const [deploying, setDeploying] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Bring Your Own Key (BYOK) State
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [customApiKey, setCustomApiKey] = useState(localStorage.getItem('user_gemini_key') || '');
+
   // Mobile Bottom Drawer & Actions
   const [mobilePromptOpen, setMobilePromptOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -356,20 +360,24 @@ export default function Workspace() {
     handleGenerate(`Apply all architectural changes and specifications from this discussion:\n${fullConversation}`);
   };
 
-    const handleGenerate = async (promptToUse) => {
+  const handleGenerate = async (promptToUse) => {
     const text = promptToUse || promptInput;
     if ((!text || !text.trim()) && !selectedImage) return;
     if (generating) return;
 
-    // Correct total build allowance calculation:
-    const totalAllowed = (user?.credits || 0) + (user?.freeBuildsTotal ?? 3);
-    const used = user?.freeBuildsUsed ?? 0;
-    const remaining = totalAllowed - used;
+    // Check if user has active custom BYOK key
+    const userCustomKey = localStorage.getItem('user_gemini_key') || null;
 
-    // Only block if user actually has 0 or negative builds left
-    if (user && totalAllowed > 0 && remaining <= 0) {
-      setShowUpgradeModal(true);
-      return;
+    // Only enforce platform credit limit if NOT using a custom API key
+    if (!userCustomKey) {
+      const totalAllowed = (user?.credits || 0) + (user?.freeBuildsTotal ?? 3);
+      const used = user?.freeBuildsUsed ?? 0;
+      const remaining = totalAllowed - used;
+
+      if (user && totalAllowed > 0 && remaining <= 0) {
+        setShowUpgradeModal(true);
+        return;
+      }
     }
 
     const authToken = token || localStorage.getItem('token');
@@ -400,7 +408,7 @@ export default function Workspace() {
         navigate(`/workspace/${currentProjectId}`, { replace: true });
       }
 
-      // 2. Call generate with the confirmed valid project ID
+      // 2. Call generate with project ID + optional user custom key
       const res = await fetch(`${API_BASE}/api/generate/${currentProjectId}`, {
         method: 'POST',
         headers: {
@@ -409,14 +417,14 @@ export default function Workspace() {
         },
         body: JSON.stringify({
           prompt: (text || 'Generate matching design based on attached image').trim(),
-          image: selectedImage || null
+          image: selectedImage || null,
+          customApiKey: userCustomKey
         })
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        // Only show upgrade modal if the server explicitly tells us quota is exceeded
         if (res.status === 403 && data.error?.toLowerCase().includes('quota')) {
           setShowUpgradeModal(true);
           return;
@@ -435,7 +443,7 @@ export default function Workspace() {
         setSelectedFile(data.files[0]);
       }
 
-      if (setUser) {
+      if (setUser && !userCustomKey) {
         setUser((prev) => ({
           ...prev,
           credits: data.remainingCredits !== undefined ? data.remainingCredits : prev?.credits,
@@ -454,9 +462,6 @@ export default function Workspace() {
       }, 500);
     }
   };
-  
-  
-
 
   const handleDeploy = async (e) => {
     if (e) {
@@ -647,6 +652,20 @@ export default function Workspace() {
               Mobile
             </button>
           </div>
+
+          {/* BYOK / API Key Configuration */}
+          <button
+            onClick={() => setShowKeyModal(true)}
+            className={`text-xs px-2 md:px-2.5 py-1 rounded border transition flex items-center gap-1.5 ${
+              customApiKey
+                ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300 hover:bg-emerald-900/60'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+            title="Configure Custom Gemini Key"
+          >
+            <span>🔑</span>
+            <span className="hidden sm:inline">{customApiKey ? 'Custom Key' : 'API Key'}</span>
+          </button>
 
           {/* Large Screen Secondary Buttons */}
           <div className="hidden lg:flex items-center gap-2">
@@ -1029,6 +1048,19 @@ export default function Workspace() {
             </div>
 
             <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setShowKeyModal(true);
+              }}
+              className="w-full py-2.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 font-medium text-left text-xs text-white flex items-center justify-between shadow"
+            >
+              <span>🔑 BYOK (Custom Gemini Key)</span>
+              <span className={customApiKey ? 'text-emerald-400' : 'text-slate-400'}>
+                {customApiKey ? 'Active' : 'Configure'}
+              </span>
+            </button>
+
+            <button
               onClick={(e) => {
                 setMobileMenuOpen(false);
                 handleDeploy(e);
@@ -1087,8 +1119,7 @@ export default function Workspace() {
         </div>
       )}
 
-      
-            {/* DYNAMIC CREDIT LIMIT / QUOTA OVER REMINDER MODAL */}
+      {/* DYNAMIC CREDIT LIMIT / QUOTA OVER REMINDER MODAL */}
       {showUpgradeModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-[#0e172a] border border-red-500/30 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center space-y-4">
@@ -1099,7 +1130,7 @@ export default function Workspace() {
             <div>
               <h3 className="text-base font-bold text-white mb-1">Free Builds Exhausted</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                You have utilized your free synthesis allowance ({user?.freeBuildsUsed ?? 0} / {(user?.freeBuildsTotal ?? 3) + (user?.credits || 0)} builds). Top up your builds to continue synthesizing.
+                You have utilized your free synthesis allowance ({user?.freeBuildsUsed ?? 0} / {(user?.freeBuildsTotal ?? 3) + (user?.credits || 0)} builds). Connect your own Gemini API Key for unlimited builds, or top up credits.
               </p>
             </div>
 
@@ -1113,10 +1144,13 @@ export default function Workspace() {
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => setShowUpgradeModal(false)}
+                onClick={() => {
+                  setShowUpgradeModal(false);
+                  setShowKeyModal(true);
+                }}
                 className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition"
               >
-                Dismiss
+                Use Own Key
               </button>
               <button
                 type="button"
@@ -1127,6 +1161,67 @@ export default function Workspace() {
                 className="flex-1 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-medium text-xs shadow-md transition"
               >
                 Refill Credits
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REPLIT-STYLE BRING YOUR OWN KEY (BYOK) MODAL */}
+      {showKeyModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-[#0e172a] border border-slate-700/80 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🔑</span>
+                <h3 className="text-sm font-semibold text-white">Bring Your Own Key (BYOK)</h3>
+              </div>
+              <button onClick={() => setShowKeyModal(false)} className="text-slate-400 hover:text-white text-sm">✕</button>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Use your own Google Gemini API key to get unlimited generations and zero queue times, just like Replit and Bolt.
+            </p>
+
+            <div>
+              <label className="block text-xs text-slate-300 mb-1 font-medium">Gemini API Key</label>
+              <input
+                type="password"
+                value={customApiKey}
+                onChange={(e) => setCustomApiKey(e.target.value)}
+                placeholder="AIzaSy..."
+                className="w-full bg-[#162032] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              />
+              <span className="text-[10px] text-slate-500 mt-1 block">
+                Keys are stored in your browser's encrypted local storage and sent securely with requests.
+              </span>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              {customApiKey && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.removeItem('user_gemini_key');
+                    setCustomApiKey('');
+                    setShowKeyModal(false);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-red-950/40 text-red-400 border border-red-800/40 text-xs hover:bg-red-900/40"
+                >
+                  Clear Key
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (customApiKey.trim()) {
+                    localStorage.setItem('user_gemini_key', customApiKey.trim());
+                  }
+                  setShowKeyModal(false);
+                }}
+                className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md transition"
+              >
+                Save Key
               </button>
             </div>
           </div>
