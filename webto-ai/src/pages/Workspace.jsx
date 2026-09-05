@@ -1087,7 +1087,8 @@ export default function Workspace() {
         </div>
       )}
 
-      {/* DYNAMIC CREDIT LIMIT / QUOTA OVER REMINDER MODAL */}
+      
+            {/* DYNAMIC CREDIT LIMIT / QUOTA OVER REMINDER MODAL */}
       {showUpgradeModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-[#0e172a] border border-red-500/30 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center space-y-4">
@@ -1098,13 +1099,15 @@ export default function Workspace() {
             <div>
               <h3 className="text-base font-bold text-white mb-1">Free Builds Exhausted</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                You have utilized your free synthesis allowance ({user?.freeBuildsUsed ?? 3} / {(user?.freeBuildsTotal ?? 3) + (user?.credits || 0)} builds). Top up your builds to continue synthesizing.
+                You have utilized your free synthesis allowance ({user?.freeBuildsUsed ?? 0} / {(user?.freeBuildsTotal ?? 3) + (user?.credits || 0)} builds). Top up your builds to continue synthesizing.
               </p>
             </div>
 
             <div className="bg-[#182338] border border-slate-700/60 rounded-xl p-3 flex justify-between items-center text-xs">
               <span className="text-slate-400">Remaining Builds:</span>
-              <span className="text-red-400 font-mono font-bold">0 Builds</span>
+              <span className="text-blue-400 font-mono font-bold">
+                {Math.max(0, ((user?.credits || 0) + (user?.freeBuildsTotal ?? 3)) - (user?.freeBuildsUsed ?? 0))} Builds
+              </span>
             </div>
 
             <div className="flex gap-2 pt-1">
@@ -1129,7 +1132,7 @@ export default function Workspace() {
           </div>
         </div>
       )}
-
+      
       {/* SEO Modal */}
       {showSeoModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
