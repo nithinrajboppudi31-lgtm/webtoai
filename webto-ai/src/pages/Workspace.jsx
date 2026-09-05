@@ -362,11 +362,13 @@ export default function Workspace() {
     if (generating) return;
 
     // Check credits locally before calling
-    const totalAllowed = ((user?.freeBuildsTotal ?? 3) + (user?.credits || 0));
-    if (user && (user?.freeBuildsUsed ?? 0) >= totalAllowed) {
-      setShowUpgradeModal(true);
-      return;
-    }
+    // WITH THIS:
+const availableCredits = (user?.credits ?? 0) + Math.max(0, (user?.freeBuildsTotal ?? 3) - (user?.freeBuildsUsed ?? 0));
+if (user && availableCredits <= 0) {
+  setShowUpgradeModal(true);
+  return;
+}
+    
 
     const authToken = token || localStorage.getItem('token');
     setGenerating(true);
