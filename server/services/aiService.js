@@ -27,16 +27,55 @@ function cleanAndParseJSON(rawText) {
   let cleaned = (rawText || '').trim();
   cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
 
+  // Try standard parse first
   try {
     return JSON.parse(cleaned);
-  } catch (err) {
-    const sanitized = cleaned.replace(/"((?:\\.|[^"\\])*)"/gs, (match) => {
+  } catch (initialErr) {
+    // 1. Sanitize raw newlines, tabs, and unescaped carriage returns inside strings
+    let sanitized = cleaned.replace(/"((?:\\.|[^"\\])*)"/gs, (match) => {
       return match
         .replace(/\n/g, '\\n')
         .replace(/\r/g, '\\r')
         .replace(/\t/g, '\\t');
     });
-    return JSON.parse(sanitized);
+
+    try {
+      return JSON.parse(sanitized);
+    } catch (sanitizedErr) {
+      // 2. Auto-repair cut-off / truncated JSON strings (fixes "Unterminated string in JSON")
+      let repaired = sanitized.trim();
+
+      // If cut off inside an open string literal, seal the quote
+      const quoteCount = (repaired.match(/(?<!\\)"/g) || []).length;
+      if (quoteCount % 2 !== 0) {
+        repaired += '"';
+      }
+
+      // If open arrays or objects remain, close them cleanly
+      const openBrackets = (repaired.match(/\[/g) || []).length - (repaired.match(/\]/g) || []).length;
+      for (let i = 0; i < openBrackets; i++) repaired += ']';
+
+      const openBraces = (repaired.match(/\{/g) || []).length - (repaired.match(/\}/g) || []).length;
+      for (let i = 0; i < openBraces; i++) repaired += '}';
+
+      try {
+        return JSON.parse(repaired);
+      } catch (repairErr) {
+        // 3. Fallback: extract entryHtml directly if the token limit cut off the trailing JSON wrapper
+        const htmlMatch = rawText.match(/"entryHtml"\s*:\s*"([\s\S]*?)(?:","files"|"$|\}\s*$)/);
+        if (htmlMatch && htmlMatch[1]) {
+          const extractedHtml = htmlMatch[1]
+            .replace(/\\n/g, '\n')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\');
+          return {
+            entryHtml: extractedHtml,
+            files: [{ name: 'index.html', path: '/index.html', content: extractedHtml }]
+          };
+        }
+        throw new Error(`JSON Parse Failure: ${initialErr.message}`);
+      }
+    }
   }
 }
 
