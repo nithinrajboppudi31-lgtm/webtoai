@@ -8,8 +8,7 @@ import jwt from 'jsonwebtoken';
 import { Resend } from 'resend';
 import { PrismaClient } from '@prisma/client';
 import nodemailer from 'nodemailer';
-import { generateProjectCode, generateChatReply } from './services/aiServices.js';
-
+import { generateProjectCode, generateChatReply } from './services/aiService.js';
 dotenv.config();
 
 const app = express();
