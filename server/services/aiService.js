@@ -115,7 +115,7 @@ CRITICAL LOVABLE & REPLIT QUALITY STANDARDS:
    - Mobile: Fixed top brand bar, fluid scrollable content feed, and a polished bottom navigation dock (Home, Explore, Create button, Notifications, Profile).
    - Desktop: Side navigation rail or top navbar with clean multi-column layouts.
 
-5. "files": Provide modular breakdown files (e.g. index.html, app.js, data.json, styles.css) for display in the code viewer, with index.html matching entryHtml.
+5. "entryHtml" is the primary deliverable. Put your complete application implementation directly inside "entryHtml".
 6. Return valid, parseable JSON conforming strictly to the requested schema.
 `;
 
@@ -177,21 +177,9 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
         entryHtml: {
           type: Type.STRING,
           description: 'A complete, self-contained, fully interactive, runnable HTML5 web application with zero external build requirements.'
-        },
-        files: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING },
-              path: { type: Type.STRING },
-              content: { type: Type.STRING }
-            },
-            required: ['name', 'path', 'content']
-          }
         }
       },
-      required: ['entryHtml', 'files']
+      required: ['entryHtml']
     }
   };
 
@@ -208,7 +196,13 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
     });
 
     if (response && response.text) {
-      return cleanAndParseJSON(response.text);
+      const parsed = cleanAndParseJSON(response.text);
+      if (parsed && parsed.entryHtml && (!parsed.files || parsed.files.length === 0)) {
+        parsed.files = [
+          { name: 'index.html', path: '/index.html', content: parsed.entryHtml }
+        ];
+      }
+      return parsed;
     }
   }
 
@@ -230,7 +224,13 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
       });
 
       if (response && response.text) {
-        return cleanAndParseJSON(response.text);
+        const parsed = cleanAndParseJSON(response.text);
+        if (parsed && parsed.entryHtml && (!parsed.files || parsed.files.length === 0)) {
+          parsed.files = [
+            { name: 'index.html', path: '/index.html', content: parsed.entryHtml }
+          ];
+        }
+        return parsed;
       }
     } catch (error) {
       console.warn(`[AI SERVICE WARNING] Key #${currentKeyIndex + 1} failed:`, error.message);
