@@ -21,11 +21,15 @@ export default function Login() {
 
   // Handle OAuth callback token / code when redirected back from Google or GitHub
   useEffect(() => {
+    let isMounted = true;
+
     const handleOAuthRedirect = async () => {
       // 1. Google OAuth implicit flow returns token in hash: #access_token=...
       if (location.hash && location.hash.includes('access_token=')) {
-        const params = new URLSearchParams(location.hash.substring(1));
+        const hashStr = location.hash.startsWith('#') ? location.hash.substring(1) : location.hash;
+        const params = new URLSearchParams(hashStr);
         const accessToken = params.get('access_token');
+
         if (accessToken) {
           setOauthLoading(true);
           try {
@@ -36,12 +40,18 @@ export default function Login() {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Google login verification failed.');
+
             login(data.token, data.user);
-            navigate(-1);
+
+            // Clean up the URL hash cleanly
+            window.history.replaceState(null, '', window.location.pathname);
+
+            // Direct route to Dashboard/Workspace instead of history.back()
+            navigate('/dashboard', { replace: true });
           } catch (err) {
-            setError(err.message || 'Google sign in failed.');
+            if (isMounted) setError(err.message || 'Google sign in failed.');
           } finally {
-            setOauthLoading(false);
+            if (isMounted) setOauthLoading(false);
           }
           return;
         }
@@ -50,6 +60,7 @@ export default function Login() {
       // 2. GitHub OAuth authorization code flow returns query param: ?code=...
       const searchParams = new URLSearchParams(location.search);
       const code = searchParams.get('code');
+
       if (code) {
         setOauthLoading(true);
         try {
@@ -60,17 +71,27 @@ export default function Login() {
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'GitHub authorization failed.');
+
           login(data.token, data.user);
-          navigate(-1);
+
+          // Clean up the URL query parameters cleanly
+          window.history.replaceState(null, '', window.location.pathname);
+
+          // Direct route to Dashboard/Workspace instead of history.back()
+          navigate('/dashboard', { replace: true });
         } catch (err) {
-          setError(err.message || 'GitHub sign in failed.');
+          if (isMounted) setError(err.message || 'GitHub sign in failed.');
         } finally {
-          setOauthLoading(false);
+          if (isMounted) setOauthLoading(false);
         }
       }
     };
 
     handleOAuthRedirect();
+
+    return () => {
+      isMounted = false;
+    };
   }, [location, login, navigate]);
 
   const handleLogin = async (e) => {
@@ -96,7 +117,7 @@ export default function Login() {
       }
 
       login(data.token, data.user);
-      navigate(-1);
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       console.warn('Backend login fallback:', err.message);
       setError(err.message || 'Login failed. Please check your credentials.');
@@ -149,7 +170,7 @@ export default function Login() {
       }
 
       login(data.token, data.user);
-      navigate(-1);
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -159,11 +180,9 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-[#070b14]/75 backdrop-blur-3xl flex flex-col justify-center items-center p-4 font-sans text-slate-100 relative overflow-hidden">
-      {/* Background Ambient Blue Glows for enhanced glass transparency reflection */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[32rem] h-[32rem] bg-blue-600/25 rounded-full blur-[140px] pointer-events-none"></div>
       <div className="absolute bottom-10 right-1/4 w-80 h-80 bg-cyan-500/15 rounded-full blur-[120px] pointer-events-none"></div>
 
-      {/* Main Container - Deep transparent glass with backdrop blur */}
       <div 
         className={`w-full max-w-[420px] border rounded-3xl p-8 shadow-2xl relative overflow-hidden transition-all duration-500 ease-out ${
           isTyping
@@ -171,20 +190,17 @@ export default function Login() {
             : 'bg-[#0c162d]/60 border-slate-700/60 backdrop-blur-2xl shadow-black/40'
         }`}
       >
-        {/* Top Accent Line */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent"></div>
 
-        {/* Back Button */}
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/')}
           className="absolute top-6 left-6 p-2 rounded-xl text-slate-400 hover:text-white bg-slate-900/40 hover:bg-slate-800/60 border border-slate-700/40 transition active:scale-95 cursor-pointer"
-          title="Go back"
+          title="Go home"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
 
-        {/* Brand Header */}
         <div className="flex flex-col items-center text-center mb-6">
           <div className="w-12 h-12 rounded-2xl bg-blue-600/15 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-3.5 shadow-lg shadow-blue-500/15">
             <Sparkles className="w-6 h-6 animate-pulse" />
@@ -193,7 +209,6 @@ export default function Login() {
           <p className="text-xs text-slate-400 mt-1">Sign in to your WEBTO AI account</p>
         </div>
 
-        {/* OAuth Buttons */}
         <div className="flex flex-col gap-2.5 mb-5">
           <button
             type="button"
@@ -243,7 +258,6 @@ export default function Login() {
           </button>
         </div>
 
-        {/* Divider */}
         <div className="relative flex items-center justify-center mb-5">
           <div className="border-t border-slate-700/70 w-full"></div>
           <span className={`px-3 text-[10px] uppercase tracking-wider text-slate-400 absolute font-semibold transition-colors duration-300 ${
@@ -253,17 +267,15 @@ export default function Login() {
           </span>
         </div>
 
-        {/* Error Alert */}
         {error && (
-          <div className="mb-4 p-3 bg-red-500/15 border border-red-500/30 rounded-xl flex items-center gap-2 text-xs text-red-400 animate-in fade-in duration-150">
+          <div className="mb-4 p-3 bg-red-500/15 border border-red-500/30 rounded-xl flex items-center gap-2 text-xs text-red-400">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Success Alert */}
         {successMsg && (
-          <div className="mb-4 p-3 bg-green-500/15 border border-green-500/30 rounded-xl flex items-center gap-2 text-xs text-green-400 animate-in fade-in duration-150">
+          <div className="mb-4 p-3 bg-green-500/15 border border-green-500/30 rounded-xl flex items-center gap-2 text-xs text-green-400">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>{successMsg}</span>
           </div>
