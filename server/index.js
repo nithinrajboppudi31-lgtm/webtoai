@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import { Resend } from 'resend';
 import { PrismaClient } from '@prisma/client';
 import nodemailer from 'nodemailer';
+import { generateProjectCode, generateChatReply } from './services/ai.js';
 
 dotenv.config();
 
@@ -598,3 +599,243 @@ app.post('/api/auth/google', async (req, res) => {
           name: profile.name || cleanEmail.split('@')[0],
           password: dummyPass,
           freeBuildsUsed: 0,
+          freeBuildsTotal: 3,
+          role: 'USER',
+        },
+      });
+    }
+
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '30d' });
+    return res.json({ token, user: formatSafeUser(user) });
+  } catch (error) {
+    console.error('Google auth error:', error);
+    return res.status(500).json({ error: 'Google authentication failed.' });
+  }
+});
+
+// ============================================================
+// 7. PROJECT DATA & GENERATION
+// ============================================================
+app.get('/api/projects/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    let project = await prisma.project.findUnique({
+      where: { id },
+      include: { files: true },
+    });
+
+    if (!project) {
+      project = await prisma.project.create({
+        data: {
+          id,
+          name: 'New Project',
+          userId: req.user.id,
+          type: 'FULL_STACK',
+          entryHtml: '',
+        },
+        include: { files: true },
+      });
+    }
+
+    return res.json({ project });
+  } catch (err) {
+    console.error('Fetch project error:', err);
+    return res.status(500).json({ error: 'Failed to retrieve project.' });
+  }
+});
+
+app.post('/api/generate/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { prompt, image } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const totalAllowed = (user.freeBuildsTotal ?? 3) + (user.credits || 0);
+    if ((user.freeBuildsUsed ?? 0) >= totalAllowed) {
+      return res.status(403).json({ error: 'Quota exceeded. Please upgrade your credits.' });
+    }
+
+    const project = await prisma.project.findUnique({
+      where: { id },
+      include: { files: true },
+    });
+
+    const existingHtml = project?.entryHtml || '';
+    const generated = await generateProjectCode(prompt, project?.type || 'FULL_STACK', existingHtml, image);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { freeBuildsUsed: { increment: 1 } },
+    });
+
+    if (generated.files && generated.files.length > 0) {
+      await prisma.projectFile.deleteMany({ where: { projectId: id } }).catch(() => {});
+      for (const file of generated.files) {
+        await prisma.projectFile.create({
+          data: {
+            projectId: id,
+            name: file.name,
+            path: file.path || file.name,
+            content: file.content || '',
+          },
+        }).catch(() => {});
+      }
+    }
+
+    const updatedProject = await prisma.project.update({
+      where: { id },
+      data: {
+        entryHtml: generated.entryHtml,
+        updatedAt: new Date(),
+      },
+      include: { files: true },
+    });
+
+    const remainingCredits = Math.max(0, totalAllowed - ((user.freeBuildsUsed ?? 0) + 1));
+
+    return res.json({
+      success: true,
+      entryHtml: generated.entryHtml,
+      files: generated.files || updatedProject.files,
+      project: updatedProject,
+      remainingCredits,
+    });
+  } catch (err) {
+    console.error('Generation error:', err);
+    return res.status(500).json({ error: err.message || 'Generation failed.' });
+  }
+});
+
+app.post('/api/chat/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { messages } = req.body;
+
+    const project = await prisma.project.findUnique({ where: { id } });
+    const reply = await generateChatReply(project?.name, project?.type, messages);
+
+    return res.json(reply);
+  } catch (err) {
+    console.error('Chat error:', err);
+    return res.status(500).json({ error: 'Chat service failed.' });
+  }
+});
+
+// Project Visibility
+app.patch('/api/projects/:id/visibility', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isPublic } = req.body;
+
+    const updated = await prisma.project.update({
+      where: { id },
+      data: { isPublic: !!isPublic },
+    });
+
+    return res.json({ success: true, isPublic: updated.isPublic });
+  } catch (err) {
+    console.error('Visibility update error:', err);
+    return res.status(500).json({ error: 'Failed to update visibility.' });
+  }
+});
+
+// Project SEO
+app.patch('/api/projects/:id/seo', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, slug, description } = req.body;
+
+    const updated = await prisma.project.update({
+      where: { id },
+      data: {
+        ...(title && { name: title }),
+        ...(slug && { slug }),
+        ...(description && { description }),
+      },
+    });
+
+    return res.json({ success: true, project: updated, entryHtml: updated.entryHtml });
+  } catch (err) {
+    console.error('SEO update error:', err);
+    return res.status(500).json({ error: 'Failed to update SEO.' });
+  }
+});
+
+// ============================================================
+// 8. DEPLOYMENT & GITHUB
+// ============================================================
+app.post('/api/deploy/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const project = await prisma.project.findUnique({ where: { id } });
+    if (!project) return res.status(404).json({ error: 'Project not found.' });
+
+    const clientUrl = process.env.CLIENT_URL || 'https://webtoai.vercel.app';
+    const deployedUrl = `${clientUrl}/preview/${project.slug || project.id}`;
+
+    const updated = await prisma.project.update({
+      where: { id },
+      data: {
+        isDeployed: true,
+        deployedUrl,
+        updatedAt: new Date(),
+      },
+    });
+
+    return res.json({ success: true, project: updated, deployedUrl });
+  } catch (err) {
+    console.error('Deploy error:', err);
+    return res.status(500).json({ error: 'Deployment failed.' });
+  }
+});
+
+app.post('/api/github/push/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { githubToken, repoName, isPrivate } = req.body;
+
+    const project = await prisma.project.findUnique({
+      where: { id },
+      include: { files: true },
+    });
+
+    if (!project) return res.status(404).json({ error: 'Project not found.' });
+
+    // GitHub API creation
+    const repoRes = await fetch('https://api.github.com/user/repos', {
+      method: 'POST',
+      headers: {
+        Authorization: `token ${githubToken}`,
+        Accept: 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: repoName,
+        private: !!isPrivate,
+        auto_init: true,
+      }),
+    });
+
+    const repoData = await repoRes.json();
+    if (!repoRes.ok) {
+      throw new Error(repoData.message || 'Failed to create GitHub repository.');
+    }
+
+    return res.json({
+      success: true,
+      repoUrl: repoData.html_url,
+    });
+  } catch (err) {
+    console.error('GitHub export error:', err);
+    return res.status(500).json({ error: err.message || 'GitHub export failed.' });
+  }
+});
+
+// ============================================================
+// 9. SERVER PORT BINDING (Render 0.0.0.0 Requirement)
+// ============================================================
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 WEBTO AI Server listening on port ${PORT} (0.0.0.0)`);
+});
