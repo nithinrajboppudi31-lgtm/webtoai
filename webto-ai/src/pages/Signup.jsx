@@ -15,35 +15,43 @@ export default function Signup() {
 
   // Handle GitHub OAuth Redirect Callback
   useEffect(() => {
+    let isMounted = true;
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
+
     if (code) {
-      handleGitHubCallback(code);
-    }
-  }, []);
+      const handleGitHubCallback = async () => {
+        setLoading(true);
+        setError('');
+        try {
+          const res = await fetch('https://webtoai-backend.onrender.com/api/auth/github', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'GitHub account creation failed.');
 
-  const handleGitHubCallback = async (code) => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetch('https://webtoai-backend.onrender.com/api/auth/github', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'GitHub account creation failed.');
+          if (data.token && data.user) {
+            login(data.token, data.user);
+            // Clean up address bar query params
+            window.history.replaceState(null, '', window.location.pathname);
+            navigate('/dashboard', { replace: true });
+          }
+        } catch (err) {
+          if (isMounted) setError(err.message || 'GitHub authentication error.');
+        } finally {
+          if (isMounted) setLoading(false);
+        }
+      };
 
-      if (data.token && data.user) {
-        login(data.token, data.user);
-      }
-      navigate('/');
-    } catch (err) {
-      setError(err.message || 'GitHub authentication error.');
-    } finally {
-      setLoading(false);
+      handleGitHubCallback();
     }
-  };
+
+    return () => {
+      isMounted = false;
+    };
+  }, [login, navigate]);
 
   const handleGoogleSuccess = async (tokenResponse) => {
     setError('');
@@ -64,8 +72,8 @@ export default function Signup() {
 
       if (data.token && data.user) {
         login(data.token, data.user);
+        navigate('/dashboard', { replace: true });
       }
-      navigate('/');
     } catch (err) {
       setError(err.message || 'Failed to authenticate with Google');
     } finally {
@@ -79,9 +87,13 @@ export default function Signup() {
   });
 
   const handleGitHubLogin = () => {
-    const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID || 'Ov23liXXXXXXXXXX';
-    const redirectUri = window.location.origin + '/signup';
-    window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=user:email`;
+    const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
+    if (!clientId) {
+      setError('GitHub Client ID is not configured in frontend environment.');
+      return;
+    }
+    const redirectUri = `${window.location.origin}/signup`;
+    window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email`;
   };
 
   const handleSubmit = async (e) => {
@@ -104,8 +116,8 @@ export default function Signup() {
 
       if (data.token && data.user) {
         login(data.token, data.user);
+        navigate('/dashboard', { replace: true });
       }
-      navigate('/');
     } catch (err) {
       setError(err.message || 'Unable to connect to registration service.');
     } finally {
@@ -193,7 +205,7 @@ export default function Signup() {
           </span>
         </div>
 
-        {/* Passwordless Signup Form */}
+        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1">Full Name</label>
