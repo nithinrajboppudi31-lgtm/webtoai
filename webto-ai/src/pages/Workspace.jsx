@@ -89,7 +89,9 @@ export default function Workspace() {
   const chatEndRef = useRef(null);
 
   useEffect(() => {
-    loadProject();
+    if (id && id !== 'undefined') {
+      loadProject();
+    }
   }, [id]);
 
   useEffect(() => {
@@ -105,7 +107,6 @@ export default function Workspace() {
     }
   }, [project]);
 
-  // Real-time progressive synthesis simulation
   useEffect(() => {
     let progressInterval = null;
     let logInterval = null;
@@ -360,12 +361,43 @@ export default function Workspace() {
     if ((!text || !text.trim()) && !selectedImage) return;
     if (generating) return;
 
+    // Check credits locally before calling
+    const totalAllowed = ((user?.freeBuildsTotal ?? 3) + (user?.credits || 0));
+    if (user && (user?.freeBuildsUsed ?? 0) >= totalAllowed) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     const authToken = token || localStorage.getItem('token');
     setGenerating(true);
     setMobilePromptOpen(false);
 
     try {
-      const res = await fetch(`${API_BASE}/api/generate/${id}`, {
+      // 1. If project ID is missing from URL, create project first
+      let currentProjectId = id;
+      if (!currentProjectId || currentProjectId === 'undefined') {
+        const createRes = await fetch(`${API_BASE}/api/projects`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            name: text.slice(0, 30) || 'New Project',
+            prompt: text,
+          }),
+        });
+        const createData = await createRes.json();
+        if (!createRes.ok || !createData.project?.id) {
+          throw new Error(createData.error || 'Failed to initialize project session.');
+        }
+        currentProjectId = createData.project.id;
+        setProject(createData.project);
+        navigate(`/workspace/${currentProjectId}`, { replace: true });
+      }
+
+      // 2. Call generate with the confirmed valid project ID
+      const res = await fetch(`${API_BASE}/api/generate/${currentProjectId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -398,10 +430,10 @@ export default function Workspace() {
         setSelectedFile(data.files[0]);
       }
 
-      if (setUser && data.remainingCredits !== undefined) {
+      if (setUser) {
         setUser((prev) => ({
           ...prev,
-          credits: data.remainingCredits,
+          credits: data.remainingCredits !== undefined ? data.remainingCredits : prev?.credits,
           freeBuildsUsed: (prev?.freeBuildsUsed ?? 0) + 1
         }));
       }
@@ -409,6 +441,7 @@ export default function Workspace() {
       setPromptInput('');
       handleRemoveImage();
     } catch (err) {
+      console.error('Generation Error:', err);
       alert(`AI Generation Error: ${err.message}`);
     } finally {
       setTimeout(() => {
@@ -447,7 +480,6 @@ export default function Workspace() {
       const targetUrl = data.deployedUrl || `https://webtoai.vercel.app/preview/${id}`;
       const opened = window.open(targetUrl, '_blank', 'noopener,noreferrer');
       if (!opened) {
-        // Fallback: copy to clipboard and alert if popups blocked
         navigator.clipboard?.writeText(targetUrl);
         alert(`🚀 Application Live!\nURL copied to clipboard:\n${targetUrl}`);
       }
@@ -768,9 +800,9 @@ export default function Workspace() {
             )}
           </div>
 
-          {/* Iframe or Code Editor View */}
+          {/* Canvas Display */}
           <div className="flex-1 overflow-hidden relative flex justify-center items-center p-1 md:p-2 bg-[#050811]">
-            {/* DYNAMIC REAL-TIME PROGRESS OVERLAY (Visible during generation across all devices) */}
+            {/* DYNAMIC REAL-TIME PROGRESS OVERLAY */}
             {generating && (
               <div className="absolute inset-0 z-30 bg-[#060b14]/90 backdrop-blur-md flex flex-col items-center justify-center p-4">
                 <div className="w-full max-w-md bg-[#0e1627] border border-blue-900/60 rounded-2xl p-4 shadow-2xl space-y-3">
@@ -833,7 +865,6 @@ export default function Workspace() {
               </div>
             ) : (
               <div className="w-full h-full flex flex-col md:flex-row bg-[#0d1627] rounded-lg overflow-hidden border border-slate-800">
-                {/* File Tree List */}
                 <div className="w-full md:w-48 border-b md:border-b-0 md:border-r border-slate-800 bg-[#09101f] p-2 overflow-x-auto md:overflow-y-auto flex md:flex-col gap-1 shrink-0">
                   <div className="hidden md:block text-[11px] font-semibold text-slate-400 px-2 py-1 uppercase">Files</div>
                   {files.length > 0 ? (
@@ -859,7 +890,6 @@ export default function Workspace() {
                   )}
                 </div>
 
-                {/* Code Body */}
                 <div className="flex-1 p-3 md:p-4 overflow-auto">
                   <pre className="text-xs font-mono text-slate-200 leading-relaxed whitespace-pre">
                     {selectedFile ? selectedFile.content : entryHtml}
@@ -871,7 +901,7 @@ export default function Workspace() {
         </main>
       </div>
 
-      {/* DRAGGABLE FLOATING VERCEL-STYLE PILL (Touch or Drag Anywhere) */}
+      {/* DRAGGABLE FLOATING VERCEL-STYLE PILL */}
       <div
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -990,7 +1020,6 @@ export default function Workspace() {
               </button>
             </div>
 
-            {/* Direct Deploy from Mobile Toolbar */}
             <button
               onClick={(e) => {
                 setMobileMenuOpen(false);
@@ -1046,6 +1075,49 @@ export default function Workspace() {
             >
               Download Source ZIP
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* DYNAMIC CREDIT LIMIT / QUOTA OVER REMINDER MODAL */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-[#0e172a] border border-red-500/30 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center space-y-4">
+            <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 text-red-400 rounded-full flex items-center justify-center mx-auto text-xl">
+              ⚡
+            </div>
+            
+            <div>
+              <h3 className="text-base font-bold text-white mb-1">Free Builds Exhausted</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                You have utilized your free synthesis allowance ({user?.freeBuildsUsed ?? 3} / {(user?.freeBuildsTotal ?? 3) + (user?.credits || 0)} builds). Top up your builds to continue synthesizing.
+              </p>
+            </div>
+
+            <div className="bg-[#182338] border border-slate-700/60 rounded-xl p-3 flex justify-between items-center text-xs">
+              <span className="text-slate-400">Remaining Builds:</span>
+              <span className="text-red-400 font-mono font-bold">0 Builds</span>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowUpgradeModal(false)}
+                className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition"
+              >
+                Dismiss
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUpgradeModal(false);
+                  navigate('/credits');
+                }}
+                className="flex-1 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-medium text-xs shadow-md transition"
+              >
+                Refill Credits
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1207,7 +1279,6 @@ export default function Workspace() {
               <div ref={chatEndRef} />
             </div>
 
-            {/* Quick Suggestion Chips */}
             {chatChips.length > 0 && (
               <div className="px-3 py-1.5 bg-[#090e1a] border-t border-slate-800 flex items-center gap-1.5 overflow-x-auto shrink-0">
                 {chatChips.map((chip, i) => (
