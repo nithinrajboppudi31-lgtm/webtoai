@@ -1,5 +1,5 @@
-import React from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import Explore from './pages/Explore';
 
@@ -24,14 +24,79 @@ import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 
-// Google Client ID (Reads from .env or fallback placeholder)
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
   'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
 
+const API_BASE = 'https://webtoai-backend.onrender.com';
+
+// Standalone Deployed Preview Component (No sidebar, no header, full screen sandbox)
+function StandalonePreview() {
+  const { id } = useParams();
+  const [html, setHtml] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const fetchPreview = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/public/preview/${id}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load preview');
+
+        const indexFile = data.project?.files?.find((f) => f.name === 'index.html');
+        setHtml(indexFile?.content || data.project?.entryHtml || '');
+      } catch (err) {
+        console.error('Preview error:', err);
+        setError(err.message || 'Deployed site not available.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPreview();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="h-screen w-screen bg-[#070b14] flex flex-col items-center justify-center text-slate-300">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p className="text-xs font-mono">Loading deployed application...</p>
+      </div>
+    );
+  }
+
+  if (error || !html) {
+    return (
+      <div className="h-screen w-screen bg-[#070b14] flex flex-col items-center justify-center text-slate-300">
+        <p className="text-sm font-medium text-red-400 mb-2">{error || 'No entry point found for this project.'}</p>
+        <a href="/" className="text-xs text-blue-400 underline">Return to WEBTO AI</a>
+      </div>
+    );
+  }
+
+  return (
+    <iframe
+      title="Deployed Preview"
+      srcDoc={html}
+      sandbox="allow-scripts allow-same-origin allow-modals allow-forms"
+      className="w-screen h-screen border-0 bg-white"
+    />
+  );
+}
+
 function AppContent() {
   const location = useLocation();
   const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
+  const isPreviewPage = location.pathname.startsWith('/preview/');
+
+  // Standalone public preview route: no sidebar, no header
+  if (isPreviewPage) {
+    return (
+      <Routes>
+        <Route path="/preview/:id" element={<StandalonePreview />} />
+      </Routes>
+    );
+  }
 
   if (isAuthPage) {
     return (
