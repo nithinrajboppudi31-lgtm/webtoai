@@ -61,82 +61,112 @@ async function generateWithRetry(fn, maxRetries = 2) {
   }
 }
 
+const CANDIDATE_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-pro',
+  'gemini-3.6-flash'
+];
+
 export async function generateProjectCode(prompt, projectType = 'FULL_STACK', existingCode = '', image = null) {
-  try {
-    console.log('[AI SERVICE] Synthesizing full-stack project code with gemini-3.6-flash...');
+  let fullPrompt = `${SYSTEM_PROMPT}\n\nProject Architecture Type: ${projectType}\nUser Requirements / App Features:\n${prompt}`;
+  if (existingCode) {
+    fullPrompt += `\n\nExisting Application Code to update/enhance:\n${existingCode.slice(0, 15000)}`;
+  }
 
-    let fullPrompt = `${SYSTEM_PROMPT}\n\nProject Architecture Type: ${projectType}\nUser Requirements / App Features:\n${prompt}`;
-    if (existingCode) {
-      fullPrompt += `\n\nExisting Application Code to update/enhance:\n${existingCode.slice(0, 15000)}`;
-    }
+  const parts = [{ text: fullPrompt }];
 
-    const parts = [{ text: fullPrompt }];
+  // If an image (design mockup / wireframe / screenshot) is attached
+  if (image) {
+    let mimeType = 'image/png';
+    let base64Data = image;
 
-    // If an image (design mockup / wireframe / screenshot) is attached
-    if (image) {
-      let mimeType = 'image/png';
-      let base64Data = image;
-
-      if (image.startsWith('data:')) {
-        const matches = image.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
-        if (matches && matches.length === 3) {
-          mimeType = matches[1];
-          base64Data = matches[2];
-        } else {
-          base64Data = image.split(',')[1] || image;
-        }
+    if (image.startsWith('data:')) {
+      const matches = image.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        mimeType = matches[1];
+        base64Data = matches[2];
+      } else {
+        base64Data = image.split(',')[1] || image;
       }
-
-      parts.unshift({
-        inlineData: {
-          mimeType: mimeType,
-          data: base64Data
-        }
-      });
     }
 
-    const response = await generateWithRetry(async () => {
-      return await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
-        contents: [
-          {
-            role: 'user',
-            parts: parts
-          }
-        ],
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
+    parts.unshift({
+      inlineData: {
+        mimeType: mimeType,
+        data: base64Data
+      }
+    });
+  }
+
+  const generationConfig = {
+    responseMimeType: 'application/json',
+    responseSchema: {
+      type: Type.OBJECT,
+      properties: {
+        entryHtml: {
+          type: Type.STRING,
+          description: 'Complete standalone HTML file with Tailwind CSS CDN, FontAwesome, complete mock dataset, and fully functional JavaScript interactive state management.'
+        },
+        files: {
+          type: Type.ARRAY,
+          items: {
             type: Type.OBJECT,
             properties: {
-              entryHtml: {
-                type: Type.STRING,
-                description: 'Complete standalone HTML file with Tailwind CSS CDN, FontAwesome, complete mock dataset, and fully functional JavaScript interactive state management.'
-              },
-              files: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    name: { type: Type.STRING },
-                    path: { type: Type.STRING },
-                    content: { type: Type.STRING }
-                  },
-                  required: ['name', 'path', 'content']
-                }
-              }
+              name: { type: Type.STRING },
+              path: { type: Type.STRING },
+              content: { type: Type.STRING }
             },
-            required: ['entryHtml', 'files']
+            required: ['name', 'path', 'content']
           }
         }
-      });
-    });
+      },
+      required: ['entryHtml', 'files']
+    }
+  };
 
-    return cleanAndParseJSON(response.text);
-  } catch (error) {
-    console.error('[AI SERVICE ERROR]:', error);
-    throw new Error(error.message || 'AI generation failed.');
+  let lastError = null;
+
+  // Iterate through fallback models if quota (429 / RESOURCE_EXHAUSTED) is reached
+  for (const modelName of CANDIDATE_MODELS) {
+    try {
+      console.log(`[AI SERVICE] Synthesizing project code with ${modelName}...`);
+
+      const response = await generateWithRetry(async () => {
+        return await ai.models.generateContent({
+          model: modelName,
+          contents: [{ role: 'user', parts: parts }],
+          config: generationConfig
+        });
+      });
+
+      if (response && response.text) {
+        return cleanAndParseJSON(response.text);
+      }
+    } catch (error) {
+      console.warn(`[AI SERVICE WARNING] Model ${modelName} failed:`, error.message);
+      lastError = error;
+
+      // Check if it's a quota / 429 exhaustion error to proceed to the next fallback model
+      const isQuotaError = 
+        error.status === 429 ||
+        error.message?.includes('429') ||
+        error.message?.includes('quota') ||
+        error.message?.includes('RESOURCE_EXHAUSTED');
+
+      if (isQuotaError) {
+        console.log(`[AI SERVICE] Quota exhausted on ${modelName}. Switching to next fallback model...`);
+        continue;
+      }
+
+      // If it's a syntax or prompt error, throw immediately
+      throw error;
+    }
   }
+
+  console.error('[AI SERVICE ERROR] All model fallbacks exhausted:', lastError);
+  throw new Error(lastError?.message || 'All AI generation models are currently rate-limited. Please retry shortly.');
 }
 
 export async function generateChatReply(projectName, projectType, messages) {
