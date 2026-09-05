@@ -30,7 +30,7 @@ const GOOGLE_CLIENT_ID =
 
 const API_BASE = 'https://webtoai-backend.onrender.com';
 
-// Standalone Deployed Preview Component (No sidebar, no header, full screen sandbox)
+// Standalone Deployed Preview Component (Safe HTML & JSON fallback parsing)
 function StandalonePreview() {
   const { id } = useParams();
   const [html, setHtml] = useState('');
@@ -38,22 +38,63 @@ function StandalonePreview() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchPreview = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/public/preview/${id}`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load preview');
+        setLoading(true);
+        setError('');
 
-        const indexFile = data.project?.files?.find((f) => f.name === 'index.html');
-        setHtml(indexFile?.content || data.project?.entryHtml || '');
+        const res = await fetch(`${API_BASE}/api/public/preview/${id}`);
+        const contentType = res.headers.get('content-type') || '';
+
+        // 1. If backend returned standard JSON
+        if (contentType.includes('application/json')) {
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || 'Failed to retrieve published application.');
+          }
+
+          const resolvedHtml =
+            data.entryHtml ||
+            data.project?.entryHtml ||
+            data.project?.files?.find((f) => f.name === 'index.html')?.content;
+
+          if (resolvedHtml && isMounted) {
+            setHtml(resolvedHtml);
+            return;
+          }
+          throw new Error('Project exists but contains no HTML entry point.');
+        }
+
+        // 2. If backend returned pure HTML string directly
+        const rawText = await res.text();
+        if (rawText.trim().startsWith('<!DOCTYPE') || rawText.trim().startsWith('<html')) {
+          if (isMounted) setHtml(rawText);
+          return;
+        }
+
+        throw new Error('Unable to parse website response format.');
       } catch (err) {
         console.error('Preview error:', err);
-        setError(err.message || 'Deployed site not available.');
+        if (isMounted) {
+          setError(err.message || 'Deployed site is temporarily unavailable.');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
-    fetchPreview();
+
+    if (id) {
+      fetchPreview();
+    } else {
+      setLoading(false);
+      setError('No project identifier found.');
+    }
+
+    return () => {
+      isMounted = false;
+    };
   }, [id]);
 
   if (loading) {
@@ -67,7 +108,7 @@ function StandalonePreview() {
 
   if (error || !html) {
     return (
-      <div className="h-screen w-screen bg-[#070b14] flex flex-col items-center justify-center text-slate-300">
+      <div className="h-screen w-screen bg-[#070b14] flex flex-col items-center justify-center text-slate-300 p-4 text-center">
         <p className="text-sm font-medium text-red-400 mb-2">{error || 'No entry point found for this project.'}</p>
         <a href="/" className="text-xs text-blue-400 underline">Return to WEBTO AI</a>
       </div>
@@ -78,7 +119,7 @@ function StandalonePreview() {
     <iframe
       title="Deployed Preview"
       srcDoc={html}
-      sandbox="allow-scripts allow-same-origin allow-modals allow-forms"
+      sandbox="allow-scripts allow-same-origin allow-modals allow-forms allow-popups"
       className="w-screen h-screen border-0 bg-white"
     />
   );
