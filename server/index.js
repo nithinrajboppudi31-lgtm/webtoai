@@ -878,6 +878,28 @@ app.post('/api/chat/:id', authenticate, async (req, res) => {
 // ============================================================
 // 8. DEPLOYMENT & EXPORT HANDLERS
 // ============================================================
+app.get('/api/deployments', authenticate, async (req, res) => {
+  try {
+    const projects = await prisma.project.findMany({
+      where: { userId: req.user.id, isPublic: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    const deployments = projects.map((p) => ({
+      id: p.id,
+      name: p.name,
+      deployedUrl: `https://webtoai.vercel.app/preview/${p.slug || p.id}`,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+    }));
+
+    return res.json({ deployments });
+  } catch (err) {
+    console.error('Get deployments error:', err);
+    return res.status(500).json({ error: 'Failed to retrieve deployments.' });
+  }
+});
+
 app.post('/api/deploy/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
@@ -897,6 +919,27 @@ app.post('/api/deploy/:id', authenticate, async (req, res) => {
   } catch (err) {
     console.error('Deploy error:', err);
     return res.status(500).json({ error: 'Deployment failed.' });
+  }
+});
+
+app.delete('/api/deploy/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const project = await prisma.project.findFirst({
+      where: { id, userId: req.user.id },
+    });
+
+    if (!project) return res.status(404).json({ error: 'Project not found.' });
+
+    await prisma.project.update({
+      where: { id },
+      data: { isPublic: false },
+    });
+
+    return res.json({ success: true, message: 'Deployment removed.' });
+  } catch (err) {
+    console.error('Delete deployment error:', err);
+    return res.status(500).json({ error: 'Failed to undeploy project.' });
   }
 });
 
@@ -941,6 +984,34 @@ app.post('/api/github/push/:id', authenticate, async (req, res) => {
   } catch (err) {
     console.error('GitHub export error:', err);
     return res.status(500).json({ error: err.message || 'Failed to push to GitHub.' });
+  }
+});
+
+// ============================================================
+// 9. PUBLIC PREVIEW ENDPOINT (NO AUTH REQUIRED)
+// ============================================================
+app.get('/api/public/preview/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const project = await prisma.project.findFirst({
+      where: {
+        OR: [{ id: id }, { slug: id }],
+      },
+    });
+
+    if (!project || !project.entryHtml) {
+      return res.status(404).json({ error: 'Published website not found or has no content.' });
+    }
+
+    return res.json({
+      success: true,
+      name: project.name,
+      entryHtml: project.entryHtml,
+    });
+  } catch (err) {
+    console.error('Public preview error:', err);
+    return res.status(500).json({ error: 'Failed to retrieve preview.' });
   }
 });
 
