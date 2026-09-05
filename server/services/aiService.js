@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -23,60 +23,49 @@ function rotateToNextKey() {
   return false;
 }
 
-function cleanAndParseJSON(rawText) {
-  let cleaned = (rawText || '').trim();
-  cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+// Resilient HTML extractor that never fails on JSON quotes or unescaped strings
+function extractCleanHtml(rawText) {
+  if (!rawText) return '';
 
-  // Try standard parse first
-  try {
-    return JSON.parse(cleaned);
-  } catch (initialErr) {
-    // 1. Sanitize raw newlines, tabs, and unescaped carriage returns inside strings
-    let sanitized = cleaned.replace(/"((?:\\.|[^"\\])*)"/gs, (match) => {
-      return match
-        .replace(/\n/g, '\\n')
-        .replace(/\r/g, '\\r')
-        .replace(/\t/g, '\\t');
-    });
+  let text = rawText.trim();
 
+  // 1. If wrapped in ```html ... ``` or ```xml ... ``` or ``` ... ```
+  const codeBlockMatch = text.match(/```(?:html|xml)?\s*([\s\S]*?)```/i);
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    return codeBlockMatch[1].trim();
+  }
+
+  // 2. If it was returned as JSON (legacy fallback)
+  if (text.startsWith('{') && text.includes('"entryHtml"')) {
     try {
-      return JSON.parse(sanitized);
-    } catch (sanitizedErr) {
-      // 2. Auto-repair cut-off / truncated JSON strings (fixes "Unterminated string in JSON")
-      let repaired = sanitized.trim();
-
-      // If cut off inside an open string literal, seal the quote
-      const quoteCount = (repaired.match(/(?<!\\)"/g) || []).length;
-      if (quoteCount % 2 !== 0) {
-        repaired += '"';
-      }
-
-      // If open arrays or objects remain, close them cleanly
-      const openBrackets = (repaired.match(/\[/g) || []).length - (repaired.match(/\]/g) || []).length;
-      for (let i = 0; i < openBrackets; i++) repaired += ']';
-
-      const openBraces = (repaired.match(/\{/g) || []).length - (repaired.match(/\}/g) || []).length;
-      for (let i = 0; i < openBraces; i++) repaired += '}';
-
-      try {
-        return JSON.parse(repaired);
-      } catch (repairErr) {
-        // 3. Fallback: extract entryHtml directly if the token limit cut off the trailing JSON wrapper
-        const htmlMatch = rawText.match(/"entryHtml"\s*:\s*"([\s\S]*?)(?:","files"|"$|\}\s*$)/);
-        if (htmlMatch && htmlMatch[1]) {
-          const extractedHtml = htmlMatch[1]
-            .replace(/\\n/g, '\n')
-            .replace(/\\"/g, '"')
-            .replace(/\\\\/g, '\\');
-          return {
-            entryHtml: extractedHtml,
-            files: [{ name: 'index.html', path: '/index.html', content: extractedHtml }]
-          };
-        }
-        throw new Error(`JSON Parse Failure: ${initialErr.message}`);
+      const parsed = JSON.parse(text);
+      if (parsed.entryHtml) return parsed.entryHtml;
+    } catch {
+      const regexMatch = text.match(/"entryHtml"\s*:\s*"([\s\S]*?)(?:",|"$|\}\s*$)/);
+      if (regexMatch && regexMatch[1]) {
+        return regexMatch[1]
+          .replace(/\\n/g, '\n')
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, '\\')
+          .replace(/\\t/g, '\t');
       }
     }
   }
+
+  // 3. If standard DOCTYPE or <html> exists in the text
+  const docTypeIndex = text.indexOf('<!DOCTYPE html');
+  const htmlTagIndex = text.indexOf('<html');
+  const startIndex = docTypeIndex !== -1 ? docTypeIndex : htmlTagIndex;
+
+  if (startIndex !== -1) {
+    const lastClosing = text.lastIndexOf('</html>');
+    if (lastClosing !== -1) {
+      return text.slice(startIndex, lastClosing + 7).trim();
+    }
+    return text.slice(startIndex).trim();
+  }
+
+  return text;
 }
 
 const SYSTEM_PROMPT = `
@@ -84,25 +73,28 @@ You are the World-Class Principal Software Architect and Lead UI/UX Engineer for
 You generate fully-formed, production-grade, highly interactive single-page full-stack web applications, marketplaces, platforms, and dashboards (e.g., ZENZO, Zomato, Swiggy, Uber Eats, Amazon, Airbnb, Spotify, Task Managers, Social Feeds, FinTech Analytics).
 
 ================================================================
-CRITICAL LOVABLE & REPLIT QUALITY STANDARDS:
+CRITICAL ARCHITECTURE RULES:
 ================================================================
 
-1. RUNNABLE "entryHtml" ARCHITECTURE:
-   - "entryHtml" MUST be a 100% complete, standalone, zero-dependency HTML5 document that runs seamlessly out of the box in an iframe sandbox without external build tools.
-   - Under NO circumstances should entryHtml be empty, truncated, or a partial stub.
-   - Include Tailwind CSS CDN: <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+1. OUTPUT FORMAT:
+   - Output ONLY the 100% complete, standalone, production-ready HTML5 document wrapped in a single \`\`\`html codeblock.
+   - Do NOT wrap in JSON. Do NOT output markdown explanations outside the codeblock.
+   - Under NO circumstances should the HTML be empty, truncated, or a partial stub.
+
+2. CDNs & TYPOGRAPHY:
+   - Include Tailwind CSS CDN: <script src="https://cdn.tailwindcss.com"></script>
    - Include Tailwind Config Script enabling custom dark palettes, custom font families, and brand color extensions.
-   - Include FontAwesome 6 CDN: <link rel="stylesheet" href="[https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css](https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css)" />
+   - Include FontAwesome 6 CDN: <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
    - Include Google Fonts CDN (Plus Jakarta Sans, Inter, or Outfit) for clean, high-end typography.
    - Use high-quality, authentic Unsplash image URLs (portraits, products, tech, food, architecture, avatars).
 
-2. MODERN VISUAL DESIGN SYSTEM (LOVABLE AESTHETIC):
-   - Backgrounds: Dark palettes (#070B14, #0B0B12, #0E1626) or modern light modes (#F8F9FD).
+3. MODERN VISUAL DESIGN SYSTEM (LOVABLE AESTHETIC):
+   - Backgrounds: Rich dark palettes (#070B14, #0B0B12, #0E1626) or modern light modes (#F8F9FD).
    - Cards: Subtle borders (border border-slate-800/80 or border-white/10), glassmorphism (backdrop-blur-md bg-white/5 or bg-slate-900/60), and rounded corners (rounded-2xl or rounded-3xl).
    - Typography: Clear visual hierarchy with bold headings, muted metadata (#94A3B8), and readable body text.
    - Buttons: Subtle gradients, active click micro-interactions (active:scale-95 transition-transform), and soft focus rings.
 
-3. REACTIVE IN-MEMORY CLIENT DATA STORE (ZERO STATIC DEAD BUTTONS):
+4. REACTIVE IN-MEMORY CLIENT DATA STORE (ZERO STATIC DEAD BUTTONS):
    - Every major button, tab, search bar, and modal trigger MUST work with real in-memory JavaScript state (e.g. window.state = { ... }).
    - Never output placeholder comments like "// add logic here" or leave functions empty.
    - Feed & Lists: Real-time search filtering, category pill toggles, and sorting dropdowns.
@@ -111,12 +103,9 @@ CRITICAL LOVABLE & REPLIT QUALITY STANDARDS:
    - Real-Time Simulation: For messaging or comment sections, sending an item should trigger a simulated incoming response within 1.2 seconds with a typing indicator.
    - Toast System: Trigger brief floating toast notifications on user actions (e.g., "Post published!", "Link copied to clipboard").
 
-4. RESPONSIVE MOBILE-FIRST SHELL:
+5. RESPONSIVE MOBILE-FIRST SHELL:
    - Mobile: Fixed top brand bar, fluid scrollable content feed, and a polished bottom navigation dock (Home, Explore, Create button, Notifications, Profile).
    - Desktop: Side navigation rail or top navbar with clean multi-column layouts.
-
-5. "entryHtml" is the primary deliverable. Put your complete application implementation directly inside "entryHtml".
-6. Return valid, parseable JSON conforming strictly to the requested schema.
 `;
 
 // Helper: auto-retry with delay on temporary 503 high-demand spikes
@@ -168,19 +157,8 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
   }
 
   const generationConfig = {
-    responseMimeType: 'application/json',
-    temperature: 0.15,
+    temperature: 0.2,
     maxOutputTokens: 8192,
-    responseSchema: {
-      type: Type.OBJECT,
-      properties: {
-        entryHtml: {
-          type: Type.STRING,
-          description: 'A complete, self-contained, fully interactive, runnable HTML5 web application with zero external build requirements.'
-        }
-      },
-      required: ['entryHtml']
-    }
   };
 
   // If user supplied their own custom API Key (BYOK), use it directly
@@ -189,20 +167,18 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
     const userClient = new GoogleGenAI({ apiKey: customApiKey });
     const response = await generateWithRetry(async () => {
       return await userClient.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.5-flash',
         contents: [{ role: 'user', parts: parts }],
         config: generationConfig
       });
     });
 
     if (response && response.text) {
-      const parsed = cleanAndParseJSON(response.text);
-      if (parsed && parsed.entryHtml && (!parsed.files || parsed.files.length === 0)) {
-        parsed.files = [
-          { name: 'index.html', path: '/index.html', content: parsed.entryHtml }
-        ];
-      }
-      return parsed;
+      const html = extractCleanHtml(response.text);
+      return {
+        entryHtml: html,
+        files: [{ name: 'index.html', path: '/index.html', content: html }]
+      };
     }
   }
 
@@ -213,24 +189,22 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
   while (attempts < maxKeyAttempts) {
     try {
       const aiClient = getAiClient();
-      console.log(`[AI SERVICE] Synthesizing project code with gemini-3.6-flash (Key #${currentKeyIndex + 1} of ${API_KEYS.length || 1})...`);
+      console.log(`[AI SERVICE] Synthesizing project code (Key #${currentKeyIndex + 1} of ${API_KEYS.length || 1})...`);
 
       const response = await generateWithRetry(async () => {
         return await aiClient.models.generateContent({
-          model: 'gemini-3.6-flash',
+          model: 'gemini-2.5-flash',
           contents: [{ role: 'user', parts: parts }],
           config: generationConfig
         });
       });
 
       if (response && response.text) {
-        const parsed = cleanAndParseJSON(response.text);
-        if (parsed && parsed.entryHtml && (!parsed.files || parsed.files.length === 0)) {
-          parsed.files = [
-            { name: 'index.html', path: '/index.html', content: parsed.entryHtml }
-          ];
-        }
-        return parsed;
+        const html = extractCleanHtml(response.text);
+        return {
+          entryHtml: html,
+          files: [{ name: 'index.html', path: '/index.html', content: html }]
+        };
       }
     } catch (error) {
       console.warn(`[AI SERVICE WARNING] Key #${currentKeyIndex + 1} failed:`, error.message);
@@ -275,12 +249,11 @@ INSTRUCTIONS:
 4. If you have gathered enough details (after 2-3 exchanges), append [READY_TO_BUILD] to your response.
 `;
 
-  // If user supplied custom key
   if (customApiKey) {
     const userClient = new GoogleGenAI({ apiKey: customApiKey });
     const response = await generateWithRetry(async () => {
       return await userClient.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.5-flash',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
       });
     });
@@ -310,7 +283,7 @@ INSTRUCTIONS:
       const aiClient = getAiClient();
       const response = await generateWithRetry(async () => {
         return await aiClient.models.generateContent({
-          model: 'gemini-3.6-flash',
+          model: 'gemini-2.5-flash',
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
         });
       });
