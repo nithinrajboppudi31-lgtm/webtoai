@@ -52,7 +52,6 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
 
   const parts = [{ text: fullPrompt }];
 
-  // If an image (design mockup / wireframe / screenshot) is attached
   if (image) {
     let mimeType = 'image/png';
     let base64Data = image;
@@ -75,7 +74,6 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
     });
   }
 
-  // Reliable production models with automatic fallback on 503 high demand
   const CANDIDATE_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
   let lastError = null;
 
@@ -123,7 +121,6 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
       console.warn(`[AI SERVICE WARNING] Model ${modelName} encountered: ${error.message}`);
       lastError = error;
 
-      // If it's a temporary 503 / high demand error, loop to the next candidate model
       if (
         error.message &&
         (error.message.includes('503') ||
