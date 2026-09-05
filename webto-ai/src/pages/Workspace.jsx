@@ -356,19 +356,21 @@ export default function Workspace() {
     handleGenerate(`Apply all architectural changes and specifications from this discussion:\n${fullConversation}`);
   };
 
-  const handleGenerate = async (promptToUse) => {
+    const handleGenerate = async (promptToUse) => {
     const text = promptToUse || promptInput;
     if ((!text || !text.trim()) && !selectedImage) return;
     if (generating) return;
 
-    // Check credits locally before calling
-    // WITH THIS:
-const availableCredits = (user?.credits ?? 0) + Math.max(0, (user?.freeBuildsTotal ?? 3) - (user?.freeBuildsUsed ?? 0));
-if (user && availableCredits <= 0) {
-  setShowUpgradeModal(true);
-  return;
-}
-    
+    // Correct total build allowance calculation:
+    const totalAllowed = (user?.credits || 0) + (user?.freeBuildsTotal ?? 3);
+    const used = user?.freeBuildsUsed ?? 0;
+    const remaining = totalAllowed - used;
+
+    // Only block if user actually has 0 or negative builds left
+    if (user && totalAllowed > 0 && remaining <= 0) {
+      setShowUpgradeModal(true);
+      return;
+    }
 
     const authToken = token || localStorage.getItem('token');
     setGenerating(true);
@@ -414,7 +416,8 @@ if (user && availableCredits <= 0) {
       const data = await res.json();
 
       if (!res.ok) {
-        if (res.status === 403 || data.error?.toLowerCase().includes('credit') || data.error?.toLowerCase().includes('quota')) {
+        // Only show upgrade modal if the server explicitly tells us quota is exceeded
+        if (res.status === 403 && data.error?.toLowerCase().includes('quota')) {
           setShowUpgradeModal(true);
           return;
         }
@@ -451,6 +454,9 @@ if (user && availableCredits <= 0) {
       }, 500);
     }
   };
+  
+  
+
 
   const handleDeploy = async (e) => {
     if (e) {
