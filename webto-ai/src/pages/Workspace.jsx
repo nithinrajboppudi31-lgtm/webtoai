@@ -42,20 +42,22 @@ export default function Workspace() {
   const [deploying, setDeploying] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Mobile Bottom Sheet / Modal States
+  // Mobile Bottom Drawer & Actions
   const [mobilePromptOpen, setMobilePromptOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Draggable Floating Pill State
+  const [pillPos, setPillPos] = useState({ x: 0, y: 0 });
+  const [isDraggingPill, setIsDraggingPill] = useState(false);
+  const dragStartRef = useRef({ startX: 0, startY: 0, initX: 0, initY: 0 });
 
   // Photo / Mockup Upload State
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Device Viewport & Inspector State
+  // Device Viewport State
   const [deviceViewport, setDeviceViewport] = useState('desktop');
-  const [inspectorActive, setInspectorActive] = useState(false);
-  const [selectedElementInfo, setSelectedElementInfo] = useState(null);
-  const [targetedPrompt, setTargetedPrompt] = useState('');
   const [iframeKey, setIframeKey] = useState(0);
   const iframeRef = useRef(null);
 
@@ -67,24 +69,18 @@ export default function Workspace() {
   const [pushingGithub, setPushingGithub] = useState(false);
   const [pushedRepoUrl, setPushedRepoUrl] = useState('');
 
-  // Public Visibility State
+  // Visibility & SEO State
   const [isPublicProject, setIsPublicProject] = useState(false);
   const [updatingVisibility, setUpdatingVisibility] = useState(false);
-
-  // Voice State
-  const [isListening, setIsListening] = useState(false);
-
-  // SEO & Vanity Slug State
   const [showSeoModal, setShowSeoModal] = useState(false);
   const [seoTitle, setSeoTitle] = useState('');
   const [seoSlug, setSeoSlug] = useState('');
   const [seoDescription, setSeoDescription] = useState('');
   const [savingSeo, setSavingSeo] = useState(false);
 
-  // Credit Modal State
+  // Chat / Voice State
+  const [isListening, setIsListening] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-
-  // Chat / Requirements State
   const [showChatModal, setShowChatModal] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
@@ -109,6 +105,7 @@ export default function Workspace() {
     }
   }, [project]);
 
+  // Real-time progressive synthesis simulation
   useEffect(() => {
     let progressInterval = null;
     let logInterval = null;
@@ -140,19 +137,19 @@ export default function Workspace() {
       logInterval = setInterval(() => {
         const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
         const possibleLogs = [
-          `[${timestamp}] Synthesizing Tailwind design system & color scales...`,
-          `[${timestamp}] Rendering responsive flex & grid viewports...`,
-          `[${timestamp}] Building state management & reactive DOM events...`,
+          `[${timestamp}] Synthesizing Tailwind responsive grid...`,
+          `[${timestamp}] Rendering full-stack client components...`,
+          `[${timestamp}] Injecting dynamic state handlers & events...`,
           `[${timestamp}] Parsing FontAwesome glyph icons and typography...`,
           `[${timestamp}] Compiling modular project files array...`,
           `[${timestamp}] Sanitizing execution sandbox & HTML5 entrypoint...`
         ];
 
         setLiveLogs((prevLogs) => {
-          if (prevLogs.length >= 6) return [...prevLogs.slice(1), possibleLogs[Math.floor(Math.random() * possibleLogs.length)]];
+          if (prevLogs.length >= 8) return [...prevLogs.slice(1), possibleLogs[Math.floor(Math.random() * possibleLogs.length)]];
           return [...prevLogs, possibleLogs[prevLogs.length % possibleLogs.length]];
         });
-      }, 1400);
+      }, 1200);
     } else {
       setGenerateProgress(0);
       setLiveLogs([]);
@@ -164,17 +161,6 @@ export default function Workspace() {
       if (logInterval) clearInterval(logInterval);
     };
   }, [generating]);
-
-  useEffect(() => {
-    const handleInspectorMessage = (e) => {
-      if (e.data && e.data.type === 'ELEMENT_SELECTED') {
-        setSelectedElementInfo(e.data.payload);
-      }
-    };
-
-    window.addEventListener('message', handleInspectorMessage);
-    return () => window.removeEventListener('message', handleInspectorMessage);
-  }, []);
 
   const loadProject = async () => {
     try {
@@ -250,13 +236,8 @@ export default function Workspace() {
         body: JSON.stringify({ isPublic: nextState }),
       });
 
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Backend route not found or server error.');
-      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update visibility');
-
       setIsPublicProject(data.isPublic);
     } catch (err) {
       alert(`Visibility Error: ${err.message}`);
@@ -283,11 +264,6 @@ export default function Workspace() {
         }),
       });
 
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('SEO endpoint not deployed or invalid server response.');
-      }
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update SEO');
 
@@ -307,7 +283,7 @@ export default function Workspace() {
   const handleVoiceInput = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
+      alert('Voice dictation not supported in this browser. Use Chrome or Edge.');
       return;
     }
 
@@ -316,38 +292,26 @@ export default function Workspace() {
     recognition.interimResults = false;
     recognition.lang = 'en-US';
 
-    recognition.onstart = () => {
-      setIsListening(true);
-    };
-
+    recognition.onstart = () => setIsListening(true);
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
       setPromptInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
     };
-
-    recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
     recognition.start();
   };
 
   const openRequirementChat = (currentProj) => {
     setShowChatModal(true);
     if (chatMessages.length === 0) {
-      const initialPrompt = [
+      setChatMessages([
         {
           role: 'assistant',
-          content: `Hi! Let's plan or update **${currentProj?.name || 'your project'}**. Tell me any new features, layout changes, or styles you'd like to implement!`,
+          content: `Hi! Let's build or customize **${currentProj?.name || 'your project'}**. Tell me any features, colors, or page components you want!`,
         }
-      ];
-      setChatMessages(initialPrompt);
-      setChatChips(['Dark Fintech Dashboard', 'Add Interactive Charts', 'Add Checkout Flow']);
+      ]);
+      setChatChips(['Dark Modern Layout', 'Add Payment Flow', 'Add Cart & Checkout Drawer']);
     }
   };
 
@@ -371,10 +335,6 @@ export default function Workspace() {
         body: JSON.stringify({ messages: updatedHistory })
       });
 
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Chat service unavailable.');
-      }
       const data = await res.json();
       if (res.ok) {
         setChatMessages([...updatedHistory, { role: 'assistant', content: data.message }]);
@@ -402,6 +362,8 @@ export default function Workspace() {
 
     const authToken = token || localStorage.getItem('token');
     setGenerating(true);
+    setMobilePromptOpen(false);
+
     try {
       const res = await fetch(`${API_BASE}/api/generate/${id}`, {
         method: 'POST',
@@ -415,10 +377,6 @@ export default function Workspace() {
         })
       });
 
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Generation service encountered an error.');
-      }
       const data = await res.json();
 
       if (!res.ok) {
@@ -450,15 +408,12 @@ export default function Workspace() {
 
       setPromptInput('');
       handleRemoveImage();
-      setSelectedElementInfo(null);
-      setInspectorActive(false);
-      setMobilePromptOpen(false);
     } catch (err) {
       alert(`AI Generation Error: ${err.message}`);
     } finally {
       setTimeout(() => {
         setGenerating(false);
-      }, 400);
+      }, 500);
     }
   };
 
@@ -469,7 +424,7 @@ export default function Workspace() {
     }
 
     if (!entryHtml) {
-      alert('Generate code first before deploying!');
+      alert('Please generate the project code first before deploying!');
       return;
     }
 
@@ -484,22 +439,17 @@ export default function Workspace() {
         },
       });
 
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Deployment service unavailable.');
-      }
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to deploy');
 
       setProject(data.project);
 
-      const targetUrl = data.deployedUrl;
-      if (targetUrl) {
-        const opened = window.open(targetUrl, '_blank', 'noopener,noreferrer');
-        if (!opened) {
-          alert(`Application Deployed Successfully!\nAccess URL: ${targetUrl}`);
-        }
+      const targetUrl = data.deployedUrl || `https://webtoai.vercel.app/preview/${id}`;
+      const opened = window.open(targetUrl, '_blank', 'noopener,noreferrer');
+      if (!opened) {
+        // Fallback: copy to clipboard and alert if popups blocked
+        navigator.clipboard?.writeText(targetUrl);
+        alert(`🚀 Application Live!\nURL copied to clipboard:\n${targetUrl}`);
       }
     } catch (err) {
       alert(`Deployment Error: ${err.message}`);
@@ -588,8 +538,35 @@ export default function Workspace() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Draggable Touch & Mouse handlers for the floating toolbar
+  const handleTouchStart = (e) => {
+    const touch = e.touches[0];
+    dragStartRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      initX: pillPos.x,
+      initY: pillPos.y,
+    };
+    setIsDraggingPill(true);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isDraggingPill) return;
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - dragStartRef.current.startX;
+    const deltaY = touch.clientY - dragStartRef.current.startY;
+    setPillPos({
+      x: dragStartRef.current.initX + deltaX,
+      y: dragStartRef.current.initY + deltaY,
+    });
+  };
+
+  const handleTouchEnd = () => {
+    setIsDraggingPill(false);
+  };
+
   return (
-    <div className="flex flex-col h-screen bg-[#070b14] text-slate-100 overflow-hidden font-sans relative">
+    <div className="flex flex-col h-screen bg-[#070b14] text-slate-100 overflow-hidden font-sans relative select-none">
       {/* Top Navbar */}
       <header className="h-12 md:h-14 border-b border-slate-800/80 px-3 md:px-4 flex items-center justify-between bg-[#0b1324] shrink-0 z-20">
         <div className="flex items-center gap-2 md:gap-3 overflow-hidden">
@@ -599,7 +576,7 @@ export default function Workspace() {
           >
             &larr; Back
           </button>
-          <span className="text-xs md:text-sm font-semibold text-white tracking-wide truncate max-w-[120px] sm:max-w-[200px] md:max-w-none">
+          <span className="text-xs md:text-sm font-semibold text-white tracking-wide truncate max-w-[110px] sm:max-w-[200px] md:max-w-none">
             {project?.name || 'Workspace Canvas'}
           </span>
           <span className="hidden sm:inline text-[10px] md:text-[11px] px-2 py-0.5 rounded-full bg-blue-950/80 text-blue-400 border border-blue-800/40 shrink-0">
@@ -631,7 +608,7 @@ export default function Workspace() {
             </button>
           </div>
 
-          {/* Desktop & Tablet Secondary Buttons */}
+          {/* Large Screen Secondary Buttons */}
           <div className="hidden lg:flex items-center gap-2">
             <button
               onClick={handleToggleVisibility}
@@ -668,7 +645,7 @@ export default function Workspace() {
             </button>
           </div>
 
-          {/* Requirements AI Chat Trigger */}
+          {/* AI Chat */}
           <button
             onClick={() => openRequirementChat(project)}
             className="text-[11px] md:text-xs px-2 md:px-2.5 py-1 rounded bg-blue-900/60 hover:bg-blue-800/80 text-blue-300 border border-blue-700/50 transition whitespace-nowrap"
@@ -753,34 +730,10 @@ export default function Workspace() {
           >
             {generating ? 'Synthesizing Application...' : 'Generate / Update Code'}
           </button>
-
-          {/* Generation Pipeline Progress Bar */}
-          {generating && (
-            <div className="mt-4 p-3 rounded-lg bg-[#0e1627] border border-blue-900/50">
-              <div className="flex items-center justify-between text-[11px] mb-1.5">
-                <span className="text-blue-400 font-medium">Stage {GENERATION_STAGES[currentStageIndex]?.stage}</span>
-                <span className="text-slate-400 font-mono">{generateProgress}%</span>
-              </div>
-              <div className="w-full bg-slate-800 rounded-full h-1.5 mb-2 overflow-hidden">
-                <div
-                  className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
-                  style={{ width: `${generateProgress}%` }}
-                />
-              </div>
-              <p className="text-[11px] text-slate-300 font-medium mb-1">
-                {GENERATION_STAGES[currentStageIndex]?.title}
-              </p>
-              <div className="bg-black/40 rounded p-2 text-[10px] font-mono text-slate-400 space-y-0.5 max-h-24 overflow-y-auto">
-                {liveLogs.map((log, i) => (
-                  <div key={i} className="truncate">{log}</div>
-                ))}
-              </div>
-            </div>
-          )}
         </aside>
 
         {/* Right Side: Tab Switcher & Sandbox Preview */}
-        <main className="flex-1 flex flex-col bg-[#0b101d] overflow-hidden">
+        <main className="flex-1 flex flex-col bg-[#0b101d] overflow-hidden relative">
           {/* View Tabs */}
           <div className="h-9 md:h-10 border-b border-slate-800/90 px-3 md:px-4 flex items-center justify-between bg-[#080d19] shrink-0">
             <div className="flex items-center gap-1">
@@ -817,6 +770,41 @@ export default function Workspace() {
 
           {/* Iframe or Code Editor View */}
           <div className="flex-1 overflow-hidden relative flex justify-center items-center p-1 md:p-2 bg-[#050811]">
+            {/* DYNAMIC REAL-TIME PROGRESS OVERLAY (Visible during generation across all devices) */}
+            {generating && (
+              <div className="absolute inset-0 z-30 bg-[#060b14]/90 backdrop-blur-md flex flex-col items-center justify-center p-4">
+                <div className="w-full max-w-md bg-[#0e1627] border border-blue-900/60 rounded-2xl p-4 shadow-2xl space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-blue-400 font-semibold tracking-wide">
+                      Stage {GENERATION_STAGES[currentStageIndex]?.stage}: {GENERATION_STAGES[currentStageIndex]?.title}
+                    </span>
+                    <span className="text-slate-300 font-mono font-bold">{generateProgress}%</span>
+                  </div>
+
+                  <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${generateProgress}%` }}
+                    />
+                  </div>
+
+                  {/* Backend Terminal Stream Lines */}
+                  <div className="bg-black/60 rounded-xl p-3 text-[10px] md:text-xs font-mono text-emerald-400/90 space-y-1 max-h-36 overflow-y-auto border border-slate-800">
+                    {liveLogs.map((log, i) => (
+                      <div key={i} className="truncate animate-fade-in flex items-center gap-1.5">
+                        <span className="text-blue-500">❯</span>
+                        <span>{log}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="text-center text-[11px] text-slate-400 animate-pulse">
+                    Synthesizing application components and live sandbox...
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeTab === 'preview' ? (
               <div
                 className={`h-full transition-all duration-300 shadow-2xl rounded-lg overflow-hidden border border-slate-800 bg-white ${
@@ -839,7 +827,7 @@ export default function Workspace() {
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center bg-[#0d1527] text-slate-400 p-4 text-center">
                     <p className="text-xs md:text-sm">No preview generated yet.</p>
-                    <p className="text-[11px] text-slate-500 mt-1">Tap the prompt bar to generate your app.</p>
+                    <p className="text-[11px] text-slate-500 mt-1">Tap the floating Prompt pill to generate your app.</p>
                   </div>
                 )}
               </div>
@@ -883,22 +871,30 @@ export default function Workspace() {
         </main>
       </div>
 
-      {/* MOBILE FLOATING VERCEL-STYLE TOOLBAR */}
-      <div className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 bg-[#121826]/90 backdrop-blur-md border border-slate-700/80 rounded-full px-3 py-1.5 shadow-2xl">
+      {/* DRAGGABLE FLOATING VERCEL-STYLE PILL (Touch or Drag Anywhere) */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          transform: `translate(calc(-50% + ${pillPos.x}px), ${pillPos.y}px)`,
+        }}
+        className="md:hidden fixed bottom-6 left-1/2 z-40 flex items-center gap-1.5 bg-[#121826]/95 backdrop-blur-md border border-slate-700/80 rounded-full px-3 py-1.5 shadow-2xl cursor-move touch-none active:scale-95 transition-transform"
+      >
         <button
           onClick={() => setMobilePromptOpen(true)}
-          className="flex items-center gap-1.5 text-xs text-slate-200 font-medium px-2.5 py-1 rounded-full bg-blue-600 hover:bg-blue-500 transition"
+          className="flex items-center gap-1.5 text-xs text-slate-200 font-medium px-3 py-1 rounded-full bg-blue-600 hover:bg-blue-500 transition"
         >
           <span>✨</span>
           <span>Prompt</span>
         </button>
 
-        <div className="w-[1px] h-4 bg-slate-700 mx-1" />
+        <div className="w-[1px] h-4 bg-slate-700 mx-0.5" />
 
         <button
           onClick={() => setMobileMenuOpen(true)}
           className="p-1.5 text-slate-300 hover:text-white rounded-full hover:bg-slate-800 transition"
-          aria-label="More tools"
+          aria-label="Actions"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -908,7 +904,7 @@ export default function Workspace() {
 
       {/* MOBILE PROMPT BOTTOM DRAWER */}
       {mobilePromptOpen && (
-        <div className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex flex-col justify-end">
+        <div className="md:hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex flex-col justify-end">
           <div className="bg-[#0b1324] border-t border-slate-700 rounded-t-2xl p-4 shadow-2xl space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-white tracking-wide">Generate / Update Code</span>
@@ -971,7 +967,7 @@ export default function Workspace() {
                 type="button"
                 onClick={() => handleGenerate()}
                 disabled={generating || (!promptInput.trim() && !selectedImage)}
-                className="flex-1 py-2 rounded-lg bg-blue-600 text-white font-medium text-xs disabled:opacity-50"
+                className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs disabled:opacity-50"
               >
                 {generating ? 'Synthesizing...' : 'Run Generation'}
               </button>
@@ -982,7 +978,7 @@ export default function Workspace() {
 
       {/* MOBILE ACTIONS BOTTOM MENU */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex flex-col justify-end">
+        <div className="md:hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex flex-col justify-end">
           <div className="bg-[#0b1324] border-t border-slate-700 rounded-t-2xl p-4 shadow-2xl space-y-2">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
               <span className="text-xs font-semibold text-white">Project Actions</span>
@@ -993,6 +989,19 @@ export default function Workspace() {
                 ✕
               </button>
             </div>
+
+            {/* Direct Deploy from Mobile Toolbar */}
+            <button
+              onClick={(e) => {
+                setMobileMenuOpen(false);
+                handleDeploy(e);
+              }}
+              disabled={deploying || !entryHtml}
+              className="w-full py-2.5 px-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 font-medium text-left text-xs text-white flex items-center justify-between shadow"
+            >
+              <span>🚀 Deploy Application</span>
+              <span>{deploying ? 'Deploying...' : 'Go Live'}</span>
+            </button>
 
             <button
               onClick={() => {
@@ -1198,7 +1207,7 @@ export default function Workspace() {
               <div ref={chatEndRef} />
             </div>
 
-            {/* Quick Chips */}
+            {/* Quick Suggestion Chips */}
             {chatChips.length > 0 && (
               <div className="px-3 py-1.5 bg-[#090e1a] border-t border-slate-800 flex items-center gap-1.5 overflow-x-auto shrink-0">
                 {chatChips.map((chip, i) => (
