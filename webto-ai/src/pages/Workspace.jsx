@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-// Inline GitHub SVG icon to resolve the Vercel/Vite missing export error
+// Clean inline GitHub icon to eliminate lucide-react build failures on Vercel
 const GithubIcon = ({ className = 'w-4 h-4' }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
     <path
@@ -480,7 +480,7 @@ ${targetedPrompt}
     setTargetedPrompt('');
   };
 
-  // Safe Deploy Function: Stops event propagation and prevents form reload / redirect loops
+  // Safe Deploy Handler: No page unloads, no router redirect loops
   const handleDeploy = async (e) => {
     if (e) {
       e.preventDefault();
