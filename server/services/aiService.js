@@ -2,7 +2,26 @@ import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Read multiple keys from GEMINI_API_KEYS (comma-separated) or single GEMINI_API_KEY
+const rawKeys = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
+const API_KEYS = rawKeys.split(',').map((k) => k.trim()).filter(Boolean);
+
+let currentKeyIndex = 0;
+
+// Dynamic client provider based on the current active key index
+function getAiClient() {
+  const activeKey = API_KEYS[currentKeyIndex] || process.env.GEMINI_API_KEY;
+  return new GoogleGenAI({ apiKey: activeKey });
+}
+
+function rotateToNextKey() {
+  if (API_KEYS.length > 1) {
+    currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
+    console.log(`[AI SERVICE] Switched active Gemini API Key to index #${currentKeyIndex + 1} of ${API_KEYS.length}`);
+    return true;
+  }
+  return false;
+}
 
 function cleanAndParseJSON(rawText) {
   let cleaned = (rawText || '').trim();
@@ -61,14 +80,6 @@ async function generateWithRetry(fn, maxRetries = 2) {
   }
 }
 
-const CANDIDATE_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-pro',
-  'gemini-3.6-flash'
-];
-
 export async function generateProjectCode(prompt, projectType = 'FULL_STACK', existingCode = '', image = null) {
   let fullPrompt = `${SYSTEM_PROMPT}\n\nProject Architecture Type: ${projectType}\nUser Requirements / App Features:\n${prompt}`;
   if (existingCode) {
@@ -126,16 +137,18 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
     }
   };
 
+  let attempts = 0;
+  const maxKeyAttempts = Math.max(1, API_KEYS.length);
   let lastError = null;
 
-  // Iterate through fallback models if quota (429 / RESOURCE_EXHAUSTED) is reached
-  for (const modelName of CANDIDATE_MODELS) {
+  while (attempts < maxKeyAttempts) {
     try {
-      console.log(`[AI SERVICE] Synthesizing project code with ${modelName}...`);
+      const aiClient = getAiClient();
+      console.log(`[AI SERVICE] Synthesizing project code with gemini-3.6-flash (Key #${currentKeyIndex + 1} of ${API_KEYS.length || 1})...`);
 
       const response = await generateWithRetry(async () => {
-        return await ai.models.generateContent({
-          model: modelName,
+        return await aiClient.models.generateContent({
+          model: 'gemini-3.6-flash',
           contents: [{ role: 'user', parts: parts }],
           config: generationConfig
         });
@@ -145,37 +158,38 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
         return cleanAndParseJSON(response.text);
       }
     } catch (error) {
-      console.warn(`[AI SERVICE WARNING] Model ${modelName} failed:`, error.message);
+      console.warn(`[AI SERVICE WARNING] Key #${currentKeyIndex + 1} failed:`, error.message);
       lastError = error;
 
-      // Check if it's a quota / 429 exhaustion error to proceed to the next fallback model
-      const isQuotaError = 
+      const isQuotaOrRateLimit =
         error.status === 429 ||
         error.message?.includes('429') ||
         error.message?.includes('quota') ||
         error.message?.includes('RESOURCE_EXHAUSTED');
 
-      if (isQuotaError) {
-        console.log(`[AI SERVICE] Quota exhausted on ${modelName}. Switching to next fallback model...`);
+      if (isQuotaOrRateLimit && rotateToNextKey()) {
+        attempts++;
         continue;
       }
 
-      // If it's a syntax or prompt error, throw immediately
       throw error;
     }
   }
 
-  console.error('[AI SERVICE ERROR] All model fallbacks exhausted:', lastError);
-  throw new Error(lastError?.message || 'All AI generation models are currently rate-limited. Please retry shortly.');
+  console.error('[AI SERVICE ERROR] All available keys exhausted:', lastError);
+  throw new Error(lastError?.message || 'Gemini quota exceeded on all configured keys.');
 }
 
 export async function generateChatReply(projectName, projectType, messages) {
-  try {
-    const formattedHistory = messages
-      .map((m) => `${m.role === 'user' ? 'User' : 'Lead Architect'}: ${m.content}`)
-      .join('\n');
+  let attempts = 0;
+  const maxKeyAttempts = Math.max(1, API_KEYS.length);
+  let lastError = null;
 
-    const prompt = `
+  const formattedHistory = messages
+    .map((m) => `${m.role === 'user' ? 'User' : 'Lead Architect'}: ${m.content}`)
+    .join('\n');
+
+  const prompt = `
 You are the Lead Architect for WEBTO AI. You are interviewing the user to plan and design the best web application before coding it.
 Project: "${projectName || 'Web App'}" (${projectType || 'FULL_STACK'})
 
@@ -190,29 +204,48 @@ INSTRUCTIONS:
 4. If you have gathered enough details (after 2-3 exchanges), append [READY_TO_BUILD] to your response.
 `;
 
-    const response = await generateWithRetry(async () => {
-      return await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+  while (attempts < maxKeyAttempts) {
+    try {
+      const aiClient = getAiClient();
+      const response = await generateWithRetry(async () => {
+        return await aiClient.models.generateContent({
+          model: 'gemini-3.6-flash',
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        });
       });
-    });
 
-    const replyText = response.text || '';
-    let chips = [];
-    const chipMatch = replyText.match(/\[CHIPS:\s*(.*?)\]/i);
-    if (chipMatch) {
-      chips = chipMatch[1].split('|').map((c) => c.trim());
+      const replyText = response.text || '';
+      let chips = [];
+      const chipMatch = replyText.match(/\[CHIPS:\s*(.*?)\]/i);
+      if (chipMatch) {
+        chips = chipMatch[1].split('|').map((c) => c.trim());
+      }
+
+      const isReadyToBuild = replyText.includes('[READY_TO_BUILD]');
+      const cleanedMessage = replyText
+        .replace(/\[CHIPS:\s*.*?\]/i)
+        .replace(/\[READY_TO_BUILD\]/i)
+        .trim();
+
+      return { message: cleanedMessage, chips, isReadyToBuild };
+    } catch (err) {
+      console.warn(`[AI SERVICE CHAT WARNING] Key #${currentKeyIndex + 1} failed:`, err.message);
+      lastError = err;
+
+      const isQuotaOrRateLimit =
+        err.status === 429 ||
+        err.message?.includes('429') ||
+        err.message?.includes('quota') ||
+        err.message?.includes('RESOURCE_EXHAUSTED');
+
+      if (isQuotaOrRateLimit && rotateToNextKey()) {
+        attempts++;
+        continue;
+      }
+
+      throw err;
     }
-
-    const isReadyToBuild = replyText.includes('[READY_TO_BUILD]');
-    const cleanedMessage = replyText
-      .replace(/\[CHIPS:\s*.*?\]/i, '')
-      .replace(/\[READY_TO_BUILD\]/i, '')
-      .trim();
-
-    return { message: cleanedMessage, chips, isReadyToBuild };
-  } catch (err) {
-    console.error('generateChatReply error:', err);
-    throw err;
   }
+
+  throw lastError;
 }
