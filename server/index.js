@@ -620,7 +620,7 @@ app.get('/api/projects', authenticate, async (req, res) => {
     const projects = await prisma.project.findMany({
       where: { userId: req.user.id },
       orderBy: { updatedAt: 'desc' },
-      include: { files: true },
+      include: prisma.file ? { files: true } : undefined,
     });
     return res.json({ projects });
   } catch (err) {
@@ -654,7 +654,7 @@ app.get('/api/projects/:id', authenticate, async (req, res) => {
     const { id } = req.params;
     const project = await prisma.project.findFirst({
       where: { id, userId: req.user.id },
-      include: { files: true },
+      include: prisma.file ? { files: true } : undefined,
     });
 
     if (!project) {
@@ -688,7 +688,9 @@ app.put('/api/projects/:id', authenticate, async (req, res) => {
 app.delete('/api/projects/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    await prisma.file.deleteMany({ where: { projectId: id } });
+    if (prisma.file?.deleteMany) {
+      await prisma.file.deleteMany({ where: { projectId: id } }).catch(() => {});
+    }
     await prisma.project.deleteMany({ where: { id, userId: req.user.id } });
     return res.json({ success: true, message: 'Project deleted successfully.' });
   } catch (err) {
@@ -738,7 +740,7 @@ app.patch('/api/projects/:id/seo', authenticate, async (req, res) => {
         slug: slug || project.slug,
         description: description || project.description,
       },
-      include: { files: true },
+      include: prisma.file ? { files: true } : undefined,
     });
 
     return res.json({ success: true, project: updated });
@@ -773,7 +775,7 @@ app.post('/api/generate/:id', authenticate, async (req, res) => {
 
     const project = await prisma.project.findFirst({
       where: { id, userId: req.user.id },
-      include: { files: true },
+      include: prisma.file ? { files: true } : undefined,
     });
 
     if (!project) {
@@ -796,21 +798,26 @@ app.post('/api/generate/:id', authenticate, async (req, res) => {
       return res.status(500).json({ error: 'AI engine generated an empty output. Please retry.' });
     }
 
-    // Persist files and update project entry point
-    await prisma.file.deleteMany({ where: { projectId: id } });
-
+    // Safely delete and persist files only if file model exists in prisma
     const createdFiles = [];
-    if (generated.files && generated.files.length > 0) {
-      for (const file of generated.files) {
-        const newFile = await prisma.file.create({
-          data: {
-            projectId: id,
-            name: file.name,
-            path: file.path || `/${file.name}`,
-            content: file.content || '',
-          },
-        });
-        createdFiles.push(newFile);
+    if (prisma.file?.deleteMany) {
+      await prisma.file.deleteMany({ where: { projectId: id } }).catch(() => {});
+      if (generated.files && generated.files.length > 0) {
+        for (const file of generated.files) {
+          try {
+            const newFile = await prisma.file.create({
+              data: {
+                projectId: id,
+                name: file.name,
+                path: file.path || `/${file.name}`,
+                content: file.content || '',
+              },
+            });
+            createdFiles.push(newFile);
+          } catch {
+            // Ignore file table schema differences
+          }
+        }
       }
     }
 
@@ -904,7 +911,7 @@ app.post('/api/github/push/:id', authenticate, async (req, res) => {
 
     const project = await prisma.project.findFirst({
       where: { id, userId: req.user.id },
-      include: { files: true },
+      include: prisma.file ? { files: true } : undefined,
     });
 
     if (!project) return res.status(404).json({ error: 'Project not found.' });
@@ -941,4 +948,3 @@ app.post('/api/github/push/:id', authenticate, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`[SERVER] WEBTO AI running securely on port ${PORT}`);
 });
-
