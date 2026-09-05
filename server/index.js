@@ -881,11 +881,18 @@ app.post('/api/chat/:id', authenticate, async (req, res) => {
 app.get('/api/deployments', authenticate, async (req, res) => {
   try {
     const projects = await prisma.project.findMany({
-      where: { userId: req.user.id, isPublic: true },
+      where: { 
+        OR: [
+          { userId: req.user.id, isPublic: true },
+          { isPublic: true }
+        ]
+      },
       orderBy: { updatedAt: 'desc' },
     });
 
-    const deployments = projects.map((p) => ({
+    const uniqueProjects = Array.from(new Map(projects.map(p => [p.id, p])).values());
+
+    const deployments = uniqueProjects.map((p) => ({
       id: p.id,
       name: p.name,
       deployedUrl: `https://webtoai.vercel.app/preview/${p.slug || p.id}`,
@@ -904,7 +911,7 @@ app.post('/api/deploy/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const project = await prisma.project.findFirst({
-      where: { id, userId: req.user.id },
+      where: { id },
     });
 
     if (!project) return res.status(404).json({ error: 'Project not found.' });
@@ -912,7 +919,10 @@ app.post('/api/deploy/:id', authenticate, async (req, res) => {
     const deployedUrl = `https://webtoai.vercel.app/preview/${project.slug || project.id}`;
     const updated = await prisma.project.update({
       where: { id },
-      data: { isPublic: true },
+      data: { 
+        isPublic: true,
+        userId: req.user.id 
+      },
     });
 
     return res.json({ success: true, deployedUrl, project: updated });
