@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-// Built-in GitHub icon to fix the Vercel/Vite build crash
 const GithubIcon = ({ className = 'w-4 h-4' }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
     <path
@@ -43,12 +42,16 @@ export default function Workspace() {
   const [deploying, setDeploying] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Mobile Bottom Sheet / Modal States
+  const [mobilePromptOpen, setMobilePromptOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   // Photo / Mockup Upload State
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Phase 12: Device Viewport & Inspector State
+  // Device Viewport & Inspector State
   const [deviceViewport, setDeviceViewport] = useState('desktop');
   const [inspectorActive, setInspectorActive] = useState(false);
   const [selectedElementInfo, setSelectedElementInfo] = useState(null);
@@ -56,7 +59,7 @@ export default function Workspace() {
   const [iframeKey, setIframeKey] = useState(0);
   const iframeRef = useRef(null);
 
-  // Phase 13: GitHub Export State
+  // GitHub Export State
   const [showGithubModal, setShowGithubModal] = useState(false);
   const [githubTokenInput, setGithubTokenInput] = useState(localStorage.getItem('gh_token') || '');
   const [githubRepoName, setGithubRepoName] = useState('');
@@ -64,23 +67,22 @@ export default function Workspace() {
   const [pushingGithub, setPushingGithub] = useState(false);
   const [pushedRepoUrl, setPushedRepoUrl] = useState('');
 
-  // Phase 15: Public Visibility State
+  // Public Visibility State
   const [isPublicProject, setIsPublicProject] = useState(false);
   const [updatingVisibility, setUpdatingVisibility] = useState(false);
 
-  // Phase 17: Speech Recognition Voice State
+  // Voice State
   const [isListening, setIsListening] = useState(false);
 
-  // Phase 18: SEO & Vanity Domain Slug State
+  // SEO & Vanity Slug State
   const [showSeoModal, setShowSeoModal] = useState(false);
   const [seoTitle, setSeoTitle] = useState('');
   const [seoSlug, setSeoSlug] = useState('');
   const [seoDescription, setSeoDescription] = useState('');
   const [savingSeo, setSavingSeo] = useState(false);
 
-  // Credit Limit Upgrade Modal State
+  // Credit Modal State
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [refilling, setRefilling] = useState(false);
 
   // Chat / Requirements State
   const [showChatModal, setShowChatModal] = useState(false);
@@ -107,7 +109,6 @@ export default function Workspace() {
     }
   }, [project]);
 
-  // Live progress engine & backend milestone logger
   useEffect(() => {
     let progressInterval = null;
     let logInterval = null;
@@ -451,6 +452,7 @@ export default function Workspace() {
       handleRemoveImage();
       setSelectedElementInfo(null);
       setInspectorActive(false);
+      setMobilePromptOpen(false);
     } catch (err) {
       alert(`AI Generation Error: ${err.message}`);
     } finally {
@@ -460,24 +462,6 @@ export default function Workspace() {
     }
   };
 
-  const handleTargetedElementEdit = (e) => {
-    e.preventDefault();
-    if (!targetedPrompt.trim() || !selectedElementInfo) return;
-
-    const comprehensivePrompt = `
-TARGETED COMPONENT MODIFICATION:
-Selected Element Tag: <${selectedElementInfo.tagName.toLowerCase()}>
-Selected Element HTML Snapshot:
-${selectedElementInfo.outerHTML.slice(0, 500)}
-
-Requested User Modification:
-${targetedPrompt}
-`;
-    handleGenerate(comprehensivePrompt);
-    setTargetedPrompt('');
-  };
-
-  // Safe Deploy Handler: No page unloads, no router redirect loops
   const handleDeploy = async (e) => {
     if (e) {
       e.preventDefault();
@@ -605,106 +589,111 @@ ${targetedPrompt}
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#070b14] text-slate-100 overflow-hidden font-sans">
+    <div className="flex flex-col h-screen bg-[#070b14] text-slate-100 overflow-hidden font-sans relative">
       {/* Top Navbar */}
-      <header className="h-14 border-b border-slate-800/80 px-4 flex items-center justify-between bg-[#0b1324] shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="h-12 md:h-14 border-b border-slate-800/80 px-3 md:px-4 flex items-center justify-between bg-[#0b1324] shrink-0 z-20">
+        <div className="flex items-center gap-2 md:gap-3 overflow-hidden">
           <button
             onClick={() => navigate('/dashboard')}
-            className="text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+            className="text-xs px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition shrink-0"
           >
-            &larr; Dashboard
+            &larr; Back
           </button>
-          <span className="text-sm font-semibold text-white tracking-wide">
+          <span className="text-xs md:text-sm font-semibold text-white tracking-wide truncate max-w-[120px] sm:max-w-[200px] md:max-w-none">
             {project?.name || 'Workspace Canvas'}
           </span>
-          <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-950/80 text-blue-400 border border-blue-800/40">
+          <span className="hidden sm:inline text-[10px] md:text-[11px] px-2 py-0.5 rounded-full bg-blue-950/80 text-blue-400 border border-blue-800/40 shrink-0">
             {project?.type || 'FULL_STACK'}
           </span>
         </div>
 
-        {/* Viewport, Visibility & Action Controls */}
-        <div className="flex items-center gap-2">
-          {/* Viewport Switchers */}
-          <div className="hidden sm:flex items-center bg-slate-900 border border-slate-800 rounded p-0.5 text-xs">
+        {/* Viewport Switcher & Primary Actions */}
+        <div className="flex items-center gap-1.5 md:gap-2">
+          {/* Viewports (Desktop, Tablet, Mobile) */}
+          <div className="flex items-center bg-slate-900 border border-slate-800 rounded p-0.5 text-[11px] md:text-xs">
             <button
               onClick={() => setDeviceViewport('desktop')}
-              className={`px-2 py-1 rounded ${deviceViewport === 'desktop' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              className={`px-1.5 md:px-2 py-0.5 md:py-1 rounded ${deviceViewport === 'desktop' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
             >
               Desktop
             </button>
             <button
               onClick={() => setDeviceViewport('tablet')}
-              className={`px-2 py-1 rounded ${deviceViewport === 'tablet' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              className={`px-1.5 md:px-2 py-0.5 md:py-1 rounded ${deviceViewport === 'tablet' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
             >
               Tablet
             </button>
             <button
               onClick={() => setDeviceViewport('mobile')}
-              className={`px-2 py-1 rounded ${deviceViewport === 'mobile' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              className={`px-1.5 md:px-2 py-0.5 md:py-1 rounded ${deviceViewport === 'mobile' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
             >
               Mobile
             </button>
           </div>
 
+          {/* Desktop & Tablet Secondary Buttons */}
+          <div className="hidden lg:flex items-center gap-2">
+            <button
+              onClick={handleToggleVisibility}
+              disabled={updatingVisibility}
+              className={`text-xs px-2.5 py-1 rounded border transition ${
+                isPublicProject
+                  ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300 hover:bg-emerald-900/60'
+                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              {updatingVisibility ? 'Updating...' : isPublicProject ? 'Public' : 'Private'}
+            </button>
+
+            <button
+              onClick={() => setShowSeoModal(true)}
+              className="text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+            >
+              SEO / Slug
+            </button>
+
+            <button
+              onClick={() => setShowGithubModal(true)}
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+            >
+              <GithubIcon className="w-3.5 h-3.5" />
+              <span>GitHub</span>
+            </button>
+
+            <button
+              onClick={handleDownloadZip}
+              className="text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+            >
+              Export ZIP
+            </button>
+          </div>
+
+          {/* Requirements AI Chat Trigger */}
           <button
-            onClick={handleToggleVisibility}
-            disabled={updatingVisibility}
-            className={`text-xs px-2.5 py-1 rounded border transition ${
-              isPublicProject
-                ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300 hover:bg-emerald-900/60'
-                : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-            }`}
+            onClick={() => openRequirementChat(project)}
+            className="text-[11px] md:text-xs px-2 md:px-2.5 py-1 rounded bg-blue-900/60 hover:bg-blue-800/80 text-blue-300 border border-blue-700/50 transition whitespace-nowrap"
           >
-            {updatingVisibility ? 'Updating...' : isPublicProject ? 'Public' : 'Private'}
+            AI Chat
           </button>
 
-          <button
-            onClick={() => setShowSeoModal(true)}
-            className="text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
-          >
-            SEO / Slug
-          </button>
-
-          <button
-            onClick={() => setShowGithubModal(true)}
-            className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
-          >
-            <GithubIcon className="w-3.5 h-3.5" />
-            <span>GitHub</span>
-          </button>
-
-          <button
-            onClick={handleDownloadZip}
-            className="text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
-          >
-            Export ZIP
-          </button>
-
-          {/* DEPLOY BUTTON */}
+          {/* Deploy Action */}
           <button
             type="button"
             onClick={(e) => handleDeploy(e)}
             disabled={deploying || !entryHtml}
-            className="text-xs font-medium px-3.5 py-1.5 rounded bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-sm disabled:opacity-50 transition"
+            className="text-[11px] md:text-xs font-medium px-2.5 md:px-3.5 py-1 md:py-1.5 rounded bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-sm disabled:opacity-50 transition whitespace-nowrap"
           >
             {deploying ? 'Deploying...' : 'Deploy'}
           </button>
         </div>
       </header>
 
-      {/* Main Workspace Split */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Side: Generation Control Panel */}
-        <aside className="w-80 border-r border-slate-800 bg-[#090f1d] flex flex-col p-4 shrink-0 overflow-y-auto">
+      {/* Main Workspace Canvas Split */}
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Desktop & Tablet Sidebar (Prompt Studio) */}
+        <aside className="hidden md:flex w-72 lg:w-80 border-r border-slate-800 bg-[#090f1d] flex-col p-4 shrink-0 overflow-y-auto">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Prompt Studio</span>
-            <button
-              onClick={() => openRequirementChat(project)}
-              className="text-xs px-2 py-0.5 rounded bg-blue-900/60 hover:bg-blue-800/80 text-blue-300 border border-blue-700/50 transition"
-            >
-              Requirements Chat
-            </button>
           </div>
 
           <div className="relative mb-2">
@@ -726,7 +715,6 @@ ${targetedPrompt}
             </button>
           </div>
 
-          {/* Image / Mockup Preview */}
           {imagePreview && (
             <div className="relative mb-3 rounded-lg overflow-hidden border border-slate-700 max-h-32 bg-slate-900">
               <img src={imagePreview} alt="Mockup" className="w-full h-full object-cover" />
@@ -766,7 +754,7 @@ ${targetedPrompt}
             {generating ? 'Synthesizing Application...' : 'Generate / Update Code'}
           </button>
 
-          {/* Live Generation Pipeline Progress */}
+          {/* Generation Pipeline Progress Bar */}
           {generating && (
             <div className="mt-4 p-3 rounded-lg bg-[#0e1627] border border-blue-900/50">
               <div className="flex items-center justify-between text-[11px] mb-1.5">
@@ -793,13 +781,13 @@ ${targetedPrompt}
 
         {/* Right Side: Tab Switcher & Sandbox Preview */}
         <main className="flex-1 flex flex-col bg-[#0b101d] overflow-hidden">
-          {/* Top Canvas Tabs */}
-          <div className="h-10 border-b border-slate-800/90 px-4 flex items-center justify-between bg-[#080d19] shrink-0">
+          {/* View Tabs */}
+          <div className="h-9 md:h-10 border-b border-slate-800/90 px-3 md:px-4 flex items-center justify-between bg-[#080d19] shrink-0">
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setActiveTab('preview')}
-                className={`text-xs px-3 py-1 rounded font-medium transition ${
+                className={`text-[11px] md:text-xs px-2.5 md:px-3 py-1 rounded font-medium transition ${
                   activeTab === 'preview' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -808,11 +796,11 @@ ${targetedPrompt}
               <button
                 type="button"
                 onClick={() => setActiveTab('code')}
-                className={`text-xs px-3 py-1 rounded font-medium transition ${
+                className={`text-[11px] md:text-xs px-2.5 md:px-3 py-1 rounded font-medium transition ${
                   activeTab === 'code' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Code Editor ({files.length || (entryHtml ? 1 : 0)} files)
+                Code Editor ({files.length || (entryHtml ? 1 : 0)})
               </button>
             </div>
 
@@ -820,15 +808,15 @@ ${targetedPrompt}
               <button
                 type="button"
                 onClick={handleCopyCode}
-                className="text-xs px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+                className="text-[11px] md:text-xs px-2 md:px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
               >
                 {copied ? 'Copied!' : 'Copy Code'}
               </button>
             )}
           </div>
 
-          {/* Canvas Display Body */}
-          <div className="flex-1 overflow-hidden relative flex justify-center items-center p-2 bg-[#050811]">
+          {/* Iframe or Code Editor View */}
+          <div className="flex-1 overflow-hidden relative flex justify-center items-center p-1 md:p-2 bg-[#050811]">
             {activeTab === 'preview' ? (
               <div
                 className={`h-full transition-all duration-300 shadow-2xl rounded-lg overflow-hidden border border-slate-800 bg-white ${
@@ -849,24 +837,24 @@ ${targetedPrompt}
                     className="w-full h-full border-0"
                   />
                 ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-[#0d1527] text-slate-400">
-                    <p className="text-sm">No preview generated yet.</p>
-                    <p className="text-xs text-slate-500 mt-1">Enter requirements and click "Generate / Update Code".</p>
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-[#0d1527] text-slate-400 p-4 text-center">
+                    <p className="text-xs md:text-sm">No preview generated yet.</p>
+                    <p className="text-[11px] text-slate-500 mt-1">Tap the prompt bar to generate your app.</p>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="w-full h-full flex bg-[#0d1627] rounded-lg overflow-hidden border border-slate-800">
+              <div className="w-full h-full flex flex-col md:flex-row bg-[#0d1627] rounded-lg overflow-hidden border border-slate-800">
                 {/* File Tree List */}
-                <div className="w-48 border-r border-slate-800 bg-[#09101f] p-2 overflow-y-auto">
-                  <div className="text-[11px] font-semibold text-slate-400 px-2 py-1 uppercase">Files</div>
+                <div className="w-full md:w-48 border-b md:border-b-0 md:border-r border-slate-800 bg-[#09101f] p-2 overflow-x-auto md:overflow-y-auto flex md:flex-col gap-1 shrink-0">
+                  <div className="hidden md:block text-[11px] font-semibold text-slate-400 px-2 py-1 uppercase">Files</div>
                   {files.length > 0 ? (
                     files.map((f, i) => (
                       <button
                         key={i}
                         type="button"
                         onClick={() => setSelectedFile(f)}
-                        className={`w-full text-left px-2 py-1.5 rounded text-xs truncate transition ${
+                        className={`text-left px-2 py-1 md:py-1.5 rounded text-xs whitespace-nowrap md:truncate transition ${
                           selectedFile?.name === f.name ? 'bg-blue-600/30 text-blue-400' : 'text-slate-400 hover:text-white'
                         }`}
                       >
@@ -876,15 +864,15 @@ ${targetedPrompt}
                   ) : (
                     <button
                       type="button"
-                      className="w-full text-left px-2 py-1.5 rounded text-xs text-blue-400 bg-blue-600/20 truncate"
+                      className="text-left px-2 py-1 rounded text-xs text-blue-400 bg-blue-600/20 truncate"
                     >
                       📄 index.html
                     </button>
                   )}
                 </div>
 
-                {/* Editor Content Area */}
-                <div className="flex-1 p-4 overflow-auto">
+                {/* Code Body */}
+                <div className="flex-1 p-3 md:p-4 overflow-auto">
                   <pre className="text-xs font-mono text-slate-200 leading-relaxed whitespace-pre">
                     {selectedFile ? selectedFile.content : entryHtml}
                   </pre>
@@ -894,6 +882,164 @@ ${targetedPrompt}
           </div>
         </main>
       </div>
+
+      {/* MOBILE FLOATING VERCEL-STYLE TOOLBAR */}
+      <div className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 bg-[#121826]/90 backdrop-blur-md border border-slate-700/80 rounded-full px-3 py-1.5 shadow-2xl">
+        <button
+          onClick={() => setMobilePromptOpen(true)}
+          className="flex items-center gap-1.5 text-xs text-slate-200 font-medium px-2.5 py-1 rounded-full bg-blue-600 hover:bg-blue-500 transition"
+        >
+          <span>✨</span>
+          <span>Prompt</span>
+        </button>
+
+        <div className="w-[1px] h-4 bg-slate-700 mx-1" />
+
+        <button
+          onClick={() => setMobileMenuOpen(true)}
+          className="p-1.5 text-slate-300 hover:text-white rounded-full hover:bg-slate-800 transition"
+          aria-label="More tools"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </div>
+
+      {/* MOBILE PROMPT BOTTOM DRAWER */}
+      {mobilePromptOpen && (
+        <div className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex flex-col justify-end">
+          <div className="bg-[#0b1324] border-t border-slate-700 rounded-t-2xl p-4 shadow-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-white tracking-wide">Generate / Update Code</span>
+              <button
+                onClick={() => setMobilePromptOpen(false)}
+                className="text-slate-400 hover:text-white text-sm p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="relative">
+              <textarea
+                value={promptInput}
+                onChange={(e) => setPromptInput(e.target.value)}
+                placeholder="What would you like to build or modify?"
+                rows={4}
+                className="w-full bg-[#060b14] border border-slate-700 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none"
+              />
+              <button
+                type="button"
+                onClick={handleVoiceInput}
+                className={`absolute bottom-2.5 right-2.5 p-1.5 rounded-full ${
+                  isListening ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                🎤
+              </button>
+            </div>
+
+            {imagePreview && (
+              <div className="relative rounded-lg overflow-hidden border border-slate-700 max-h-24 bg-slate-900">
+                <img src={imagePreview} alt="Mockup" className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  className="absolute top-1 right-1 bg-black/70 text-white rounded-full p-1 text-[10px]"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImageSelect}
+                accept="image/*"
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="py-2 px-3 bg-slate-800 rounded-lg text-xs text-slate-300 shrink-0"
+              >
+                📷 Image
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGenerate()}
+                disabled={generating || (!promptInput.trim() && !selectedImage)}
+                className="flex-1 py-2 rounded-lg bg-blue-600 text-white font-medium text-xs disabled:opacity-50"
+              >
+                {generating ? 'Synthesizing...' : 'Run Generation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MOBILE ACTIONS BOTTOM MENU */}
+      {mobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex flex-col justify-end">
+          <div className="bg-[#0b1324] border-t border-slate-700 rounded-t-2xl p-4 shadow-2xl space-y-2">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <span className="text-xs font-semibold text-white">Project Actions</span>
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-slate-400 hover:text-white text-sm p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                handleToggleVisibility();
+              }}
+              className="w-full py-2 px-3 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-left text-xs text-slate-200 flex items-center justify-between"
+            >
+              <span>Project Visibility</span>
+              <span className={isPublicProject ? 'text-emerald-400' : 'text-slate-400'}>
+                {isPublicProject ? 'Public' : 'Private'}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setShowSeoModal(true);
+              }}
+              className="w-full py-2 px-3 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-left text-xs text-slate-200"
+            >
+              SEO & Vanity Slug
+            </button>
+
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setShowGithubModal(true);
+              }}
+              className="w-full py-2 px-3 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-left text-xs text-slate-200 flex items-center gap-2"
+            >
+              <GithubIcon className="w-3.5 h-3.5" />
+              <span>Export to GitHub</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                handleDownloadZip();
+              }}
+              className="w-full py-2 px-3 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-left text-xs text-slate-200"
+            >
+              Download Source ZIP
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* SEO Modal */}
       {showSeoModal && (
@@ -1022,6 +1168,74 @@ ${targetedPrompt}
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* AI Requirements Chat Modal */}
+      {showChatModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-3 md:p-4 z-50">
+          <div className="bg-[#0e172a] border border-slate-700 rounded-2xl max-w-lg w-full h-[520px] flex flex-col shadow-2xl overflow-hidden">
+            <div className="p-3.5 border-b border-slate-800 flex items-center justify-between bg-[#0b1220]">
+              <span className="text-xs font-semibold text-white tracking-wide">WEBTO Architecture Assistant</span>
+              <button onClick={() => setShowChatModal(false)} className="text-slate-400 hover:text-white text-sm">✕</button>
+            </div>
+
+            <div className="flex-1 p-3 overflow-y-auto space-y-2 text-xs">
+              {chatMessages.map((m, idx) => (
+                <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className={`max-w-[85%] rounded-xl p-2.5 leading-relaxed ${
+                      m.role === 'user'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-[#182338] text-slate-200 border border-slate-700/60'
+                    }`}
+                  >
+                    {m.content}
+                  </div>
+                </div>
+              ))}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Quick Chips */}
+            {chatChips.length > 0 && (
+              <div className="px-3 py-1.5 bg-[#090e1a] border-t border-slate-800 flex items-center gap-1.5 overflow-x-auto shrink-0">
+                {chatChips.map((chip, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSendChatMessage(chip)}
+                    className="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700 shrink-0 whitespace-nowrap"
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="p-3 border-t border-slate-800 bg-[#0b1220] flex items-center gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendChatMessage()}
+                placeholder="Ask architect to modify or plan features..."
+                className="flex-1 bg-[#152033] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+              <button
+                onClick={() => handleSendChatMessage()}
+                disabled={chatLoading || !chatInput.trim()}
+                className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs disabled:opacity-50"
+              >
+                Send
+              </button>
+              <button
+                onClick={handleApplyChatChanges}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium"
+              >
+                Apply
+              </button>
+            </div>
           </div>
         </div>
       )}
