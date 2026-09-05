@@ -41,25 +41,22 @@ function cleanAndParseJSON(rawText) {
 }
 
 const SYSTEM_PROMPT = `
-You are the Lead Full-Stack Software Architect and UI/UX Designer for WEBTO AI.
-You generate fully-formed, production-grade, highly interactive single-page full-stack web applications, marketplaces, platforms, and dashboards (e.g., Zomato, Swiggy, Uber Eats, Amazon, Airbnb, Spotify, Task Managers, Social Feeds, FinTech Analytics).
+You are the World-Class Principal Software Architect and Lead UI/UX Engineer for WEBTO AI — operating at the engineering caliber of Lovable.dev and Replit Agent.
+You generate fully-formed, production-grade, highly interactive single-page full-stack web applications, marketplaces, platforms, and dashboards (e.g., ZENZO, Zomato, Swiggy, Uber Eats, Amazon, Airbnb, Spotify, Task Managers, Social Feeds, FinTech Analytics).
 
 CRITICAL ARCHITECTURE RULES:
-1. "entryHtml": MUST be a 100% complete, standalone HTML5 document that runs seamlessly out of the box in an iframe sandbox without external build tools.
+1. "entryHtml": MUST be a 100% complete, standalone, production-ready HTML5 document that runs seamlessly out of the box in an iframe sandbox without external build tools. Under NO circumstances should entryHtml be empty or a stub.
    - Include Tailwind CSS CDN: <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
    - Include FontAwesome 6 CDN: <link rel="stylesheet" href="[https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css](https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css)" />
-   - Use Google Fonts (Inter or Plus Jakarta Sans) for clean, high-end typography.
-   - Use reliable Unsplash image URLs (e.g. food, tech, landscapes, products, avatars).
+   - Use Google Fonts (Plus Jakarta Sans, Inter, or Outfit) for clean typography.
+   - Use reliable Unsplash image URLs (e.g. food, tech, portraits, products, avatars).
 
-2. FULL-STACK APPLICATION LOGIC & REAL-TIME STATE:
-   - For platforms like Swiggy, Zomato, or Ecommerce:
-     * Full interactive Discovery & Feed: Real-time search inputs, category pill filters, sorting dropdowns, veg/non-veg toggles, and rating badges.
-     * Full In-Memory State & Store: Implement complete JavaScript state handling (e.g. window.state = { cart: [], user: {}, items: [...], activeFilter: 'all' }) with real-time UI re-rendering functions.
-     * Live Cart & Checkout Drawer: Real-time item additions/quantity increments (+/-), subtotal, delivery fee, taxes, discount calculations, and persistent badge counts.
-     * Interactive Modals & Drawers: Product/dish detail sheets, filters, order summary modals, and live order tracking simulations (Placed -> Preparing -> Out for Delivery -> Delivered).
-     * Forms & Dynamic Views: Add/Edit modals, tab switches, and notification toasts.
+2. FULL-STACK INTERACTIVE STATE & ZERO PLACEHOLDERS:
+   - Every major button, tab, like toggle, bookmark, cart action, and modal trigger MUST work with real in-memory JavaScript state.
+   - Never output placeholder comments like "// add logic here" or leave functions empty.
+   - For real-time features (chat, notifications, feeds), simulate real responses with micro-delays, realistic mock datasets, and active state transitions.
 
-3. "files": Provide modular breakdown files (e.g. index.html, app.js, data.json, styles.css) for display in the code viewer.
+3. "files": Provide modular breakdown files (e.g. index.html, app.js, data.json, styles.css) for display in the code viewer, with index.html matching entryHtml.
 4. Return valid, parseable JSON conforming strictly to the requested schema.
 `;
 
@@ -80,7 +77,7 @@ async function generateWithRetry(fn, maxRetries = 2) {
   }
 }
 
-export async function generateProjectCode(prompt, projectType = 'FULL_STACK', existingCode = '', image = null) {
+export async function generateProjectCode(prompt, projectType = 'FULL_STACK', existingCode = '', image = null, customApiKey = null) {
   let fullPrompt = `${SYSTEM_PROMPT}\n\nProject Architecture Type: ${projectType}\nUser Requirements / App Features:\n${prompt}`;
   if (existingCode) {
     fullPrompt += `\n\nExisting Application Code to update/enhance:\n${existingCode.slice(0, 15000)}`;
@@ -113,6 +110,8 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
 
   const generationConfig = {
     responseMimeType: 'application/json',
+    temperature: 0.2,
+    maxOutputTokens: 8192,
     responseSchema: {
       type: Type.OBJECT,
       properties: {
@@ -136,6 +135,23 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
       required: ['entryHtml', 'files']
     }
   };
+
+  // If user supplied their own custom API Key (BYOK), use it directly
+  if (customApiKey) {
+    console.log('[AI SERVICE] Synthesizing project code using User Custom API Key...');
+    const userClient = new GoogleGenAI({ apiKey: customApiKey });
+    const response = await generateWithRetry(async () => {
+      return await userClient.models.generateContent({
+        model: 'gemini-3.6-flash',
+        contents: [{ role: 'user', parts: parts }],
+        config: generationConfig
+      });
+    });
+
+    if (response && response.text) {
+      return cleanAndParseJSON(response.text);
+    }
+  }
 
   let attempts = 0;
   const maxKeyAttempts = Math.max(1, API_KEYS.length);
@@ -180,11 +196,7 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
   throw new Error(lastError?.message || 'Gemini quota exceeded on all configured keys.');
 }
 
-export async function generateChatReply(projectName, projectType, messages) {
-  let attempts = 0;
-  const maxKeyAttempts = Math.max(1, API_KEYS.length);
-  let lastError = null;
-
+export async function generateChatReply(projectName, projectType, messages, customApiKey = null) {
   const formattedHistory = messages
     .map((m) => `${m.role === 'user' ? 'User' : 'Lead Architect'}: ${m.content}`)
     .join('\n');
@@ -203,6 +215,36 @@ INSTRUCTIONS:
    [CHIPS: Option 1 | Option 2 | Option 3]
 4. If you have gathered enough details (after 2-3 exchanges), append [READY_TO_BUILD] to your response.
 `;
+
+  // If user supplied custom key
+  if (customApiKey) {
+    const userClient = new GoogleGenAI({ apiKey: customApiKey });
+    const response = await generateWithRetry(async () => {
+      return await userClient.models.generateContent({
+        model: 'gemini-3.6-flash',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      });
+    });
+
+    const replyText = response.text || '';
+    let chips = [];
+    const chipMatch = replyText.match(/\[CHIPS:\s*(.*?)\]/i);
+    if (chipMatch) {
+      chips = chipMatch[1].split('|').map((c) => c.trim());
+    }
+
+    const isReadyToBuild = replyText.includes('[READY_TO_BUILD]');
+    const cleanedMessage = replyText
+      .replace(/\[CHIPS:\s*.*?\]/i)
+      .replace(/\[READY_TO_BUILD\]/i)
+      .trim();
+
+    return { message: cleanedMessage, chips, isReadyToBuild };
+  }
+
+  let attempts = 0;
+  const maxKeyAttempts = Math.max(1, API_KEYS.length);
+  let lastError = null;
 
   while (attempts < maxKeyAttempts) {
     try {
