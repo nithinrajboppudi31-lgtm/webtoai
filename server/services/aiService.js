@@ -45,104 +45,88 @@ CRITICAL ARCHITECTURE RULES:
 `;
 
 export async function generateProjectCode(prompt, projectType = 'FULL_STACK', existingCode = '', image = null) {
-  let fullPrompt = `${SYSTEM_PROMPT}\n\nProject Architecture Type: ${projectType}\nUser Requirements / App Features:\n${prompt}`;
-  if (existingCode) {
-    fullPrompt += `\n\nExisting Application Code to update/enhance:\n${existingCode.slice(0, 15000)}`;
-  }
+  try {
+    console.log('[AI SERVICE] Synthesizing full-stack project code with gemini-2.5-flash...');
 
-  const parts = [{ text: fullPrompt }];
-
-  if (image) {
-    let mimeType = 'image/png';
-    let base64Data = image;
-
-    if (image.startsWith('data:')) {
-      const matches = image.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
-      if (matches && matches.length === 3) {
-        mimeType = matches[1];
-        base64Data = matches[2];
-      } else {
-        base64Data = image.split(',')[1] || image;
-      }
+    let fullPrompt = `${SYSTEM_PROMPT}\n\nProject Architecture Type: ${projectType}\nUser Requirements / App Features:\n${prompt}`;
+    if (existingCode) {
+      fullPrompt += `\n\nExisting Application Code to update/enhance:\n${existingCode.slice(0, 15000)}`;
     }
 
-    parts.unshift({
-      inlineData: {
-        mimeType: mimeType,
-        data: base64Data
+    const parts = [{ text: fullPrompt }];
+
+    // If an image (design mockup / wireframe / screenshot) is attached
+    if (image) {
+      let mimeType = 'image/png';
+      let base64Data = image;
+
+      if (image.startsWith('data:')) {
+        const matches = image.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+        if (matches && matches.length === 3) {
+          mimeType = matches[1];
+          base64Data = matches[2];
+        } else {
+          base64Data = image.split(',')[1] || image;
+        }
       }
-    });
-  }
 
-  const CANDIDATE_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
-  let lastError = null;
-
-  for (const modelName of CANDIDATE_MODELS) {
-    try {
-      console.log(`[AI SERVICE] Synthesizing full-stack project code with ${modelName}...`);
-
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: [
-          {
-            role: 'user',
-            parts: parts
-          }
-        ],
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              entryHtml: {
-                type: Type.STRING,
-                description: 'Complete standalone HTML file with Tailwind CSS CDN, FontAwesome, complete mock dataset, and fully functional JavaScript interactive state management.'
-              },
-              files: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    name: { type: Type.STRING },
-                    path: { type: Type.STRING },
-                    content: { type: Type.STRING }
-                  },
-                  required: ['name', 'path', 'content']
-                }
-              }
-            },
-            required: ['entryHtml', 'files']
-          }
+      parts.unshift({
+        inlineData: {
+          mimeType: mimeType,
+          data: base64Data
         }
       });
-
-      return cleanAndParseJSON(response.text);
-    } catch (error) {
-      console.warn(`[AI SERVICE WARNING] Model ${modelName} encountered: ${error.message}`);
-      lastError = error;
-
-      if (
-        error.message &&
-        (error.message.includes('503') ||
-          error.message.includes('high demand') ||
-          error.message.includes('UNAVAILABLE'))
-      ) {
-        continue;
-      }
-      throw new Error(error.message || 'AI generation failed.');
     }
-  }
 
-  console.error('[AI SERVICE ERROR]: All candidate models failed.', lastError);
-  throw new Error(lastError?.message || 'AI generation failed.');
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          role: 'user',
+          parts: parts
+        }
+      ],
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            entryHtml: {
+              type: Type.STRING,
+              description: 'Complete standalone HTML file with Tailwind CSS CDN, FontAwesome, complete mock dataset, and fully functional JavaScript interactive state management.'
+            },
+            files: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  path: { type: Type.STRING },
+                  content: { type: Type.STRING }
+                },
+                required: ['name', 'path', 'content']
+              }
+            }
+          },
+          required: ['entryHtml', 'files']
+        }
+      }
+    });
+
+    return cleanAndParseJSON(response.text);
+  } catch (error) {
+    console.error('[AI SERVICE ERROR]:', error);
+    throw new Error(error.message || 'AI generation failed.');
+  }
 }
 
 export async function generateChatReply(projectName, projectType, messages) {
-  const formattedHistory = messages
-    .map((m) => `${m.role === 'user' ? 'User' : 'Lead Architect'}: ${m.content}`)
-    .join('\n');
+  try {
+    const formattedHistory = messages
+      .map((m) => `${m.role === 'user' ? 'User' : 'Lead Architect'}: ${m.content}`)
+      .join('\n');
 
-  const prompt = `
+    const prompt = `
 You are the Lead Architect for WEBTO AI. You are interviewing the user to plan and design the best web application before coding it.
 Project: "${projectName || 'Web App'}" (${projectType || 'FULL_STACK'})
 
@@ -157,40 +141,27 @@ INSTRUCTIONS:
 4. If you have gathered enough details (after 2-3 exchanges), append [READY_TO_BUILD] to your response.
 `;
 
-  const CANDIDATE_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    });
 
-  for (const modelName of CANDIDATE_MODELS) {
-    try {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      });
-
-      const replyText = response.text || '';
-      let chips = [];
-      const chipMatch = replyText.match(/\[CHIPS:\s*(.*?)\]/i);
-      if (chipMatch) {
-        chips = chipMatch[1].split('|').map((c) => c.trim());
-      }
-
-      const isReadyToBuild = replyText.includes('[READY_TO_BUILD]');
-      const cleanedMessage = replyText
-        .replace(/\[CHIPS:\s*.*?\]/i, '')
-        .replace(/\[READY_TO_BUILD\]/i, '')
-        .trim();
-
-      return { message: cleanedMessage, chips, isReadyToBuild };
-    } catch (err) {
-      console.warn(`[CHAT WARNING] Model ${modelName} failed: ${err.message}`);
-      if (
-        err.message &&
-        (err.message.includes('503') ||
-          err.message.includes('high demand') ||
-          err.message.includes('UNAVAILABLE'))
-      ) {
-        continue;
-      }
-      throw err;
+    const replyText = response.text || '';
+    let chips = [];
+    const chipMatch = replyText.match(/\[CHIPS:\s*(.*?)\]/i);
+    if (chipMatch) {
+      chips = chipMatch[1].split('|').map((c) => c.trim());
     }
+
+    const isReadyToBuild = replyText.includes('[READY_TO_BUILD]');
+    const cleanedMessage = replyText
+      .replace(/\[CHIPS:\s*.*?\]/i, '')
+      .replace(/\[READY_TO_BUILD\]/i, '')
+      .trim();
+
+    return { message: cleanedMessage, chips, isReadyToBuild };
+  } catch (err) {
+    console.error('generateChatReply error:', err);
+    throw err;
   }
 }
