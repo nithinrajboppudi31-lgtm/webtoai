@@ -44,9 +44,26 @@ CRITICAL ARCHITECTURE RULES:
 4. Return valid, parseable JSON conforming strictly to the requested schema.
 `;
 
+// Helper: auto-retry with delay on temporary 503 high-demand spikes
+async function generateWithRetry(fn, maxRetries = 2) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const is503 = error?.message && (error.message.includes('503') || error.message.includes('high demand') || error.message.includes('UNAVAILABLE'));
+      if (is503 && attempt < maxRetries) {
+        console.warn(`[AI SERVICE] 503 High demand detected. Retrying in ${(attempt + 1) * 1500}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 1500));
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
 export async function generateProjectCode(prompt, projectType = 'FULL_STACK', existingCode = '', image = null) {
   try {
-    console.log('[AI SERVICE] Synthesizing full-stack project code with gemini-2.5-flash...');
+    console.log('[AI SERVICE] Synthesizing full-stack project code with gemini-3.6-flash...');
 
     let fullPrompt = `${SYSTEM_PROMPT}\n\nProject Architecture Type: ${projectType}\nUser Requirements / App Features:\n${prompt}`;
     if (existingCode) {
@@ -78,39 +95,41 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
       });
     }
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: parts
-        }
-      ],
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            entryHtml: {
-              type: Type.STRING,
-              description: 'Complete standalone HTML file with Tailwind CSS CDN, FontAwesome, complete mock dataset, and fully functional JavaScript interactive state management.'
-            },
-            files: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  path: { type: Type.STRING },
-                  content: { type: Type.STRING }
-                },
-                required: ['name', 'path', 'content']
+    const response = await generateWithRetry(async () => {
+      return await ai.models.generateContent({
+        model: 'gemini-3.6-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: parts
+          }
+        ],
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              entryHtml: {
+                type: Type.STRING,
+                description: 'Complete standalone HTML file with Tailwind CSS CDN, FontAwesome, complete mock dataset, and fully functional JavaScript interactive state management.'
+              },
+              files: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING },
+                    path: { type: Type.STRING },
+                    content: { type: Type.STRING }
+                  },
+                  required: ['name', 'path', 'content']
+                }
               }
-            }
-          },
-          required: ['entryHtml', 'files']
+            },
+            required: ['entryHtml', 'files']
+          }
         }
-      }
+      });
     });
 
     return cleanAndParseJSON(response.text);
@@ -141,9 +160,11 @@ INSTRUCTIONS:
 4. If you have gathered enough details (after 2-3 exchanges), append [READY_TO_BUILD] to your response.
 `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    const response = await generateWithRetry(async () => {
+      return await ai.models.generateContent({
+        model: 'gemini-3.6-flash',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      });
     });
 
     const replyText = response.text || '';
