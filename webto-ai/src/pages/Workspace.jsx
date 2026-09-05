@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-// Clean SVG GitHub icon to prevent Vite missing-export build crash on Vercel
+// Built-in GitHub icon to fix the Vercel/Vite build crash
 const GithubIcon = ({ className = 'w-4 h-4' }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
     <path
@@ -80,6 +80,7 @@ export default function Workspace() {
 
   // Credit Limit Upgrade Modal State
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [refilling, setRefilling] = useState(false);
 
   // Chat / Requirements State
   const [showChatModal, setShowChatModal] = useState(false);
@@ -106,6 +107,7 @@ export default function Workspace() {
     }
   }, [project]);
 
+  // Live progress engine & backend milestone logger
   useEffect(() => {
     let progressInterval = null;
     let logInterval = null;
@@ -115,6 +117,7 @@ export default function Workspace() {
       setCurrentStageIndex(0);
       setLiveLogs(['[INIT] Connecting to WEBTO AI synthesis engine...', '[SYS] Initializing LLM context & schema validation...']);
 
+      // Smooth progress calculation with dynamic stepping
       progressInterval = setInterval(() => {
         setGenerateProgress((prev) => {
           if (prev >= 98) return 98;
@@ -134,6 +137,7 @@ export default function Workspace() {
         });
       }, 250);
 
+      // Stream realistic backend console logs
       logInterval = setInterval(() => {
         const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
         const possibleLogs = [
@@ -162,6 +166,7 @@ export default function Workspace() {
     };
   }, [generating]);
 
+  // Listen for clicks inside the iframe
   useEffect(() => {
     const handleInspectorMessage = (e) => {
       if (e.data && e.data.type === 'ELEMENT_SELECTED') {
@@ -179,6 +184,10 @@ export default function Workspace() {
       const res = await fetch(`${API_BASE}/api/projects/${id}`, {
         headers: { Authorization: `Bearer ${authToken}` }
       });
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server returned invalid response format.');
+      }
       const data = await res.json();
       if (res.ok && data.project) {
         setProject(data.project);
@@ -243,6 +252,10 @@ export default function Workspace() {
         body: JSON.stringify({ isPublic: nextState }),
       });
 
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Backend route not found or server error.');
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update visibility');
 
@@ -272,6 +285,11 @@ export default function Workspace() {
         }),
       });
 
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('SEO endpoint not deployed or invalid server response.');
+      }
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update SEO');
 
@@ -291,7 +309,7 @@ export default function Workspace() {
   const handleVoiceInput = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert('Speech recognition is not supported in this browser.');
+      alert('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
       return;
     }
 
@@ -300,13 +318,23 @@ export default function Workspace() {
     recognition.interimResults = false;
     recognition.lang = 'en-US';
 
-    recognition.onstart = () => setIsListening(true);
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
       setPromptInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
     };
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
+
+    recognition.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
 
     recognition.start();
   };
@@ -317,11 +345,11 @@ export default function Workspace() {
       const initialPrompt = [
         {
           role: 'assistant',
-          content: `Hi! Let's plan or update **${currentProj?.name || 'your project'}**. Tell me any new features or styles you'd like!`,
+          content: `Hi! Let's plan or update **${currentProj?.name || 'your project'}**. Tell me any new features, layout changes, or styles you'd like to implement!`,
         }
       ];
       setChatMessages(initialPrompt);
-      setChatChips(['Dark Modern Dashboard', 'Add Interactive Table', 'Add Contact Section']);
+      setChatChips(['Dark Fintech Dashboard', 'Add Interactive Charts', 'Add Checkout Flow']);
     }
   };
 
@@ -345,6 +373,10 @@ export default function Workspace() {
         body: JSON.stringify({ messages: updatedHistory })
       });
 
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Chat service unavailable.');
+      }
       const data = await res.json();
       if (res.ok) {
         setChatMessages([...updatedHistory, { role: 'assistant', content: data.message }]);
@@ -385,10 +417,14 @@ export default function Workspace() {
         })
       });
 
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Generation service encountered an error.');
+      }
       const data = await res.json();
 
       if (!res.ok) {
-        if (res.status === 403 || data.error?.toLowerCase().includes('credit')) {
+        if (res.status === 403 || data.error?.toLowerCase().includes('credit') || data.error?.toLowerCase().includes('quota')) {
           setShowUpgradeModal(true);
           return;
         }
@@ -421,7 +457,9 @@ export default function Workspace() {
     } catch (err) {
       alert(`AI Generation Error: ${err.message}`);
     } finally {
-      setTimeout(() => setGenerating(false), 400);
+      setTimeout(() => {
+        setGenerating(false);
+      }, 400);
     }
   };
 
@@ -442,7 +480,7 @@ ${targetedPrompt}
     setTargetedPrompt('');
   };
 
-  // Fixed Deploy Handler: Prevents page redirect loops
+  // Safe Deploy Handler: No unwanted page resets or forced redirects to home
   const handleDeploy = async (e) => {
     if (e) {
       e.preventDefault();
@@ -464,6 +502,10 @@ ${targetedPrompt}
           Authorization: `Bearer ${authToken}`
         }
       });
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Deployment service unavailable.');
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to deploy');
 
@@ -542,6 +584,10 @@ ${targetedPrompt}
         }),
       });
 
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('GitHub integration service unavailable.');
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to push to GitHub');
 
@@ -608,29 +654,29 @@ ${targetedPrompt}
   };
 
   return (
-    <div className="h-screen w-screen bg-[#070b14] text-slate-100 flex flex-col font-sans overflow-hidden">
-      {/* Workspace Top Toolbar */}
-      <header className="h-14 shrink-0 border-b border-slate-800 bg-[#0b1324] px-3 sm:px-4 flex items-center justify-between z-20">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+    <div className="min-h-screen bg-[#070b14] text-slate-100 flex flex-col font-sans">
+      {/* Top Workspace Navigation Bar */}
+      <header className="h-14 border-b border-slate-800 bg-[#0b1324] px-4 flex items-center justify-between z-10">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => navigate('/dashboard')}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition cursor-pointer shrink-0"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition cursor-pointer"
             title="Back to Dashboard"
           >
             ←
           </button>
-          <span className="font-semibold text-xs tracking-wide text-white truncate max-w-[140px] sm:max-w-xs">
+          <span className="font-semibold text-xs tracking-wide text-white truncate max-w-[200px] sm:max-w-xs">
             {project?.name || 'Application Builder'}
           </span>
-          <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase font-mono shrink-0">
+          <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase font-mono">
             {project?.type || 'FULL_STACK'}
           </span>
         </div>
 
-        {/* Action Controls - Scrollable container for mobile so buttons are never hidden */}
-        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-1">
-          <div className="hidden md:flex bg-slate-900 border border-slate-800 rounded-lg p-0.5 shrink-0">
+        {/* Viewport, Inspector & Action Buttons */}
+        <div className="flex items-center gap-2">
+          <div className="hidden sm:flex bg-slate-900 border border-slate-800 rounded-lg p-0.5">
             <button
               type="button"
               onClick={() => setDeviceViewport('desktop')}
@@ -663,7 +709,7 @@ ${targetedPrompt}
           <button
             type="button"
             onClick={() => setInspectorActive(!inspectorActive)}
-            className={`px-2.5 py-1.5 rounded-lg border text-xs transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+            className={`px-2.5 py-1.5 rounded-lg border text-xs transition flex items-center gap-1.5 ${
               inspectorActive
                 ? 'bg-blue-600/20 border-blue-500 text-blue-300'
                 : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
@@ -675,7 +721,7 @@ ${targetedPrompt}
           <button
             type="button"
             onClick={() => openRequirementChat(project)}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 transition shrink-0 cursor-pointer"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 transition cursor-pointer"
           >
             Chat
           </button>
@@ -683,7 +729,7 @@ ${targetedPrompt}
           <button
             type="button"
             onClick={() => setShowSeoModal(true)}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 transition shrink-0 cursor-pointer"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 transition cursor-pointer"
           >
             Settings
           </button>
@@ -691,26 +737,26 @@ ${targetedPrompt}
           <button
             type="button"
             onClick={() => setShowGithubModal(true)}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 transition flex items-center gap-1.5 shrink-0 cursor-pointer"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer"
           >
             <GithubIcon className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">GitHub</span>
+            <span>GitHub</span>
           </button>
 
           <button
             type="button"
             onClick={handleDownloadZip}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 transition shrink-0 cursor-pointer"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 transition cursor-pointer"
             title="Download ZIP Archive"
           >
-            Export
+            Export ZIP
           </button>
 
           <button
             type="button"
             disabled={deploying}
             onClick={handleDeploy}
-            className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-600/20 disabled:opacity-50 cursor-pointer shrink-0"
+            className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-600/20 disabled:opacity-50 cursor-pointer"
           >
             <span>{deploying ? 'Deploying...' : 'Deploy'}</span>
           </button>
@@ -718,15 +764,15 @@ ${targetedPrompt}
       </header>
 
       {/* Main Workspace Frame */}
-      <div className="flex-1 flex flex-col overflow-hidden relative">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         <main className="flex-1 flex flex-col bg-[#050811] relative overflow-hidden">
-          {/* Sub Navigation (Live Preview / Code Editor tabs) */}
-          <div className="h-10 shrink-0 border-b border-slate-800/80 bg-[#080d1a] px-4 flex items-center justify-between">
+          {/* Sub Navigation */}
+          <div className="h-10 border-b border-slate-800/80 bg-[#080d1a] px-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setActiveTab('preview')}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition cursor-pointer ${
+                className={`px-3 py-1 rounded-md text-xs font-medium transition ${
                   activeTab === 'preview' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -735,7 +781,7 @@ ${targetedPrompt}
               <button
                 type="button"
                 onClick={() => setActiveTab('code')}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition cursor-pointer ${
+                className={`px-3 py-1 rounded-md text-xs font-medium transition ${
                   activeTab === 'code' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -754,9 +800,9 @@ ${targetedPrompt}
             )}
           </div>
 
-          {/* Inspector Component Editor Toolbar */}
+          {/* Inspector Component Editor Overlay */}
           {inspectorActive && selectedElementInfo && (
-            <div className="p-2.5 bg-blue-950/80 border-b border-blue-500/40 flex items-center justify-between gap-3 text-xs z-10 shrink-0">
+            <div className="p-2.5 bg-blue-950/80 border-b border-blue-500/40 flex items-center justify-between gap-3 text-xs z-10">
               <div className="flex items-center gap-2 truncate">
                 <span className="px-2 py-0.5 rounded bg-blue-600 text-white font-mono text-[10px] uppercase">
                   {selectedElementInfo.tagName}
@@ -784,7 +830,7 @@ ${targetedPrompt}
                 <button
                   type="button"
                   onClick={() => setSelectedElementInfo(null)}
-                  className="p-1 text-slate-400 hover:text-white"
+                  className="p-1 text-slate-400 hover:text-white cursor-pointer"
                 >
                   ✕
                 </button>
@@ -792,7 +838,7 @@ ${targetedPrompt}
             </div>
           )}
 
-          {/* Canvas & Editor Area */}
+          {/* Tab Views */}
           <div className="flex-1 flex items-center justify-center p-2 relative overflow-auto bg-[#04060b]">
             {activeTab === 'preview' ? (
               <div
@@ -815,7 +861,7 @@ ${targetedPrompt}
                   />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center bg-[#070d19] text-slate-400 p-6 text-center">
-                    <p className="text-sm font-semibold text-white mb-1">Canvas is empty</p>
+                    <p className="text-sm mb-1">Canvas is empty</p>
                     <p className="text-xs text-slate-500">
                       Enter a prompt below and start building your interactive web application.
                     </p>
@@ -824,6 +870,7 @@ ${targetedPrompt}
               </div>
             ) : (
               <div className="w-full h-full flex bg-[#0c1322] rounded-xl border border-slate-800 overflow-hidden">
+                {/* File Tree */}
                 <div className="w-48 border-r border-slate-800 bg-[#080e1a] p-2 overflow-y-auto">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 px-2 py-1 mb-1">
                     Project Files
@@ -844,16 +891,11 @@ ${targetedPrompt}
                       </button>
                     ))
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedFile({ name: 'index.html', content: entryHtml })}
-                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono text-blue-400 bg-blue-600/20 border border-blue-500/30"
-                    >
-                      index.html
-                    </button>
+                    <div className="text-xs text-slate-500 px-2 py-1">No files generated yet</div>
                   )}
                 </div>
 
+                {/* File Code Viewer */}
                 <div className="flex-1 p-3 overflow-auto bg-[#070b14]">
                   <pre className="font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
                     {selectedFile?.content || entryHtml || '// Source code will appear here'}
@@ -863,8 +905,8 @@ ${targetedPrompt}
             )}
           </div>
 
-          {/* Bottom Prompt Bar: Fixed at base of workspace */}
-          <div className="p-3 bg-[#080d1c] border-t border-slate-800/80 shrink-0 z-20">
+          {/* AI Generator Bottom Bar */}
+          <div className="p-3 bg-[#080d1c] border-t border-slate-800/80">
             {generating && (
               <div className="mb-2 p-2.5 rounded-xl bg-blue-950/40 border border-blue-500/20">
                 <div className="flex justify-between items-center text-xs font-semibold text-blue-300 mb-1">
@@ -892,7 +934,7 @@ ${targetedPrompt}
                 <button
                   type="button"
                   onClick={handleRemoveImage}
-                  className="p-1 hover:text-red-400 text-slate-400"
+                  className="p-1 hover:text-red-400 text-slate-400 cursor-pointer"
                 >
                   ✕
                 </button>
@@ -916,7 +958,7 @@ ${targetedPrompt}
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-400 hover:text-white transition cursor-pointer text-xs shrink-0"
+                className="p-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-400 hover:text-white transition cursor-pointer text-xs"
                 title="Attach UI Mockup"
               >
                 Img
@@ -925,7 +967,7 @@ ${targetedPrompt}
               <button
                 type="button"
                 onClick={handleVoiceInput}
-                className={`p-2.5 rounded-xl border text-xs transition cursor-pointer shrink-0 ${
+                className={`p-2 rounded-lg border text-xs transition cursor-pointer ${
                   isListening
                     ? 'bg-rose-600/20 border-rose-500 text-rose-400 animate-pulse'
                     : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
@@ -945,9 +987,9 @@ ${targetedPrompt}
               <button
                 type="submit"
                 disabled={generating}
-                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold rounded-xl transition shadow-md shadow-blue-600/20 disabled:opacity-50 cursor-pointer shrink-0"
+                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold rounded-xl transition shadow-md shadow-blue-600/20 disabled:opacity-50 cursor-pointer"
               >
-                {generating ? 'Building...' : 'Update'}
+                {generating ? 'Building...' : 'Update Project'}
               </button>
             </form>
           </div>
@@ -966,7 +1008,7 @@ ${targetedPrompt}
               <button
                 type="button"
                 onClick={() => setShowGithubModal(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white cursor-pointer"
               >
                 ✕
               </button>
@@ -1043,7 +1085,7 @@ ${targetedPrompt}
               <button
                 type="button"
                 onClick={() => setShowSeoModal(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white cursor-pointer"
               >
                 ✕
               </button>
@@ -1118,7 +1160,7 @@ ${targetedPrompt}
               <button
                 type="button"
                 onClick={() => setShowChatModal(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white cursor-pointer"
               >
                 ✕
               </button>
