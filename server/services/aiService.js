@@ -167,7 +167,7 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
     const userClient = new GoogleGenAI({ apiKey: customApiKey });
     const response = await generateWithRetry(async () => {
       return await userClient.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-3.6-flash',
         contents: [{ role: 'user', parts: parts }],
         config: generationConfig
       });
@@ -189,11 +189,11 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
   while (attempts < maxKeyAttempts) {
     try {
       const aiClient = getAiClient();
-      console.log(`[AI SERVICE] Synthesizing project code (Key #${currentKeyIndex + 1} of ${API_KEYS.length || 1})...`);
+      console.log(`[AI SERVICE] Synthesizing project code with gemini-3.6-flash (Key #${currentKeyIndex + 1} of ${API_KEYS.length || 1})...`);
 
       const response = await generateWithRetry(async () => {
         return await aiClient.models.generateContent({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-3.6-flash',
           contents: [{ role: 'user', parts: parts }],
           config: generationConfig
         });
@@ -253,7 +253,7 @@ INSTRUCTIONS:
     const userClient = new GoogleGenAI({ apiKey: customApiKey });
     const response = await generateWithRetry(async () => {
       return await userClient.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-3.6-flash',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
       });
     });
@@ -283,7 +283,7 @@ INSTRUCTIONS:
       const aiClient = getAiClient();
       const response = await generateWithRetry(async () => {
         return await aiClient.models.generateContent({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-3.6-flash',
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
         });
       });
