@@ -615,6 +615,28 @@ app.post('/api/auth/google', async (req, res) => {
 // ============================================================
 // 7. PROJECT DATA & GENERATION
 // ============================================================
+// CREATE NEW PROJECT (Fixes 404 on "Start Building")
+app.post('/api/projects', authenticate, async (req, res) => {
+  try {
+    const { name, type, prompt } = req.body;
+    const project = await prisma.project.create({
+      data: {
+        name: name || 'New Project',
+        type: type || 'FULL_STACK',
+        userId: req.user.id,
+        entryHtml: '',
+        description: prompt ? prompt.slice(0, 200) : '',
+      },
+      include: { files: true },
+    });
+    return res.status(201).json({ success: true, project });
+  } catch (err) {
+    console.error('Create project error:', err);
+    return res.status(500).json({ error: 'Failed to create project.' });
+  }
+});
+
+// GET PROJECT BY ID
 app.get('/api/projects/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
@@ -642,6 +664,7 @@ app.get('/api/projects/:id', authenticate, async (req, res) => {
     return res.status(500).json({ error: 'Failed to retrieve project.' });
   }
 });
+
 
 app.post('/api/generate/:id', authenticate, async (req, res) => {
   try {
