@@ -716,9 +716,10 @@ app.post('/api/generate/:id', authenticate, async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const totalAllowed = (user.freeBuildsTotal ?? 3) + (user.credits || 0);
-    if ((user.freeBuildsUsed ?? 0) >= totalAllowed) {
-      return res.status(403).json({ error: 'Quota exceeded. Please upgrade your credits.' });
-    }
+if ((user.freeBuildsUsed ?? 0) >= totalAllowed) {
+  return res.status(403).json({ error: 'Quota exceeded. Please upgrade your credits.' });
+}
+    
 
     const project = await prisma.project.findUnique({
       where: { id },
