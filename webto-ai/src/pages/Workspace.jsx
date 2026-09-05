@@ -476,8 +476,8 @@ export default function Workspace() {
       console.error('Generation Error:', err);
       setErrorModal({
         open: true,
-        title: 'Synthesis Interrupted',
-        message: 'The synthesis engine encountered a temporary timeout or token limit on this complex prompt. Tap "Try Again" to re-run synthesis with optimized parameters.'
+        title: 'Generation Failed',
+        message: err.message || 'Generation failed. Please try again.'
       });
     } finally {
       setTimeout(() => {
