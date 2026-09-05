@@ -167,7 +167,7 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
     const userClient = new GoogleGenAI({ apiKey: customApiKey });
     const response = await generateWithRetry(async () => {
       return await userClient.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-1.5-flash',
         contents: [{ role: 'user', parts: parts }],
         config: generationConfig
       });
@@ -193,7 +193,7 @@ export async function generateProjectCode(prompt, projectType = 'FULL_STACK', ex
 
       const response = await generateWithRetry(async () => {
         return await aiClient.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-1.5-flash',
           contents: [{ role: 'user', parts: parts }],
           config: generationConfig
         });
@@ -253,7 +253,7 @@ INSTRUCTIONS:
     const userClient = new GoogleGenAI({ apiKey: customApiKey });
     const response = await generateWithRetry(async () => {
       return await userClient.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-1.5-flash',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
       });
     });
@@ -283,7 +283,7 @@ INSTRUCTIONS:
       const aiClient = getAiClient();
       const response = await generateWithRetry(async () => {
         return await aiClient.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-1.5-flash',
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
         });
       });
