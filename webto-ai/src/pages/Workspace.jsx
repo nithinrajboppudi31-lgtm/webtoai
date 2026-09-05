@@ -480,7 +480,7 @@ ${targetedPrompt}
     setTargetedPrompt('');
   };
 
-  // Safe Deploy Handler: No unwanted page resets or forced redirects to home
+  // Safe Deploy Handler: No page unloads, no router redirect loops
   const handleDeploy = async (e) => {
     if (e) {
       e.preventDefault();
@@ -499,13 +499,15 @@ ${targetedPrompt}
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        }
+          Authorization: `Bearer ${authToken}`,
+        },
       });
+
       const contentType = res.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         throw new Error('Deployment service unavailable.');
       }
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to deploy');
 
@@ -515,7 +517,7 @@ ${targetedPrompt}
       if (targetUrl) {
         const opened = window.open(targetUrl, '_blank', 'noopener,noreferrer');
         if (!opened) {
-          alert(`Application Deployed!\nLive URL: ${targetUrl}`);
+          alert(`Application Deployed Successfully!\nAccess URL: ${targetUrl}`);
         }
       }
     } catch (err) {
@@ -850,7 +852,40 @@ ${targetedPrompt}
                     : 'w-[375px] max-w-full'
                 }`}
               >
-                {entryHtml ? (
+                {/* Generation Engine Active State in Middle Box */}
+                {generating ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-[#070d19] text-slate-200 p-6 relative">
+                    <div className="max-w-md w-full flex flex-col items-center text-center">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center mb-4">
+                        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                      </div>
+
+                      <div className="text-sm font-semibold text-white mb-1">
+                        {GENERATION_STAGES[currentStageIndex]?.title || 'Synthesizing Application...'}
+                      </div>
+                      <div className="text-xs text-blue-400 font-mono mb-4">
+                        Stage {GENERATION_STAGES[currentStageIndex]?.stage || '1/4'} • {generateProgress}%
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mb-6">
+                        <div
+                          className="bg-blue-500 h-full rounded-full transition-all duration-300"
+                          style={{ width: `${generateProgress}%` }}
+                        />
+                      </div>
+
+                      {/* Real-time backend synthesis logs */}
+                      <div className="w-full bg-[#050914] border border-slate-800 rounded-xl p-3 text-left font-mono text-[11px] text-slate-400 h-32 overflow-hidden flex flex-col justify-end shadow-inner">
+                        {liveLogs.map((log, idx) => (
+                          <div key={idx} className="truncate text-slate-400 py-0.5">
+                            {log}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : entryHtml ? (
                   <iframe
                     key={iframeKey}
                     ref={iframeRef}
@@ -861,7 +896,7 @@ ${targetedPrompt}
                   />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center bg-[#070d19] text-slate-400 p-6 text-center">
-                    <p className="text-sm mb-1">Canvas is empty</p>
+                    <p className="text-sm mb-1 font-semibold text-slate-300">Canvas is empty</p>
                     <p className="text-xs text-slate-500">
                       Enter a prompt below and start building your interactive web application.
                     </p>
@@ -907,26 +942,6 @@ ${targetedPrompt}
 
           {/* AI Generator Bottom Bar */}
           <div className="p-3 bg-[#080d1c] border-t border-slate-800/80">
-            {generating && (
-              <div className="mb-2 p-2.5 rounded-xl bg-blue-950/40 border border-blue-500/20">
-                <div className="flex justify-between items-center text-xs font-semibold text-blue-300 mb-1">
-                  <span>{GENERATION_STAGES[currentStageIndex]?.title || 'Synthesizing Application...'}</span>
-                  <span>{generateProgress}%</span>
-                </div>
-                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                  <div
-                    className="bg-blue-500 h-full rounded-full transition-all duration-300"
-                    style={{ width: `${generateProgress}%` }}
-                  />
-                </div>
-                {liveLogs.length > 0 && (
-                  <div className="mt-2 text-[10px] font-mono text-slate-400 truncate">
-                    {liveLogs[liveLogs.length - 1]}
-                  </div>
-                )}
-              </div>
-            )}
-
             {imagePreview && (
               <div className="mb-2 flex items-center gap-2 p-1.5 bg-slate-900 border border-slate-700 rounded-lg w-fit">
                 <img src={imagePreview} alt="Mockup" className="w-8 h-8 rounded object-cover" />
